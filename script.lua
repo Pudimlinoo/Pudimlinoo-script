@@ -547,7 +547,7 @@ local Camera = workspace.CurrentCamera
 
 local function aplicarZoom()
 	player.CameraMinZoomDistance = 0.5
-	player.CameraMaxZoomDistance = 500
+	player.CameraMaxZoomDistance = 1000
 	Camera.CameraType = Enum.CameraType.Custom
 
 	local char = player.Character
