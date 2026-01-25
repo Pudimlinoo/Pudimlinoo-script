@@ -345,6 +345,24 @@ Instance.new("UICorner",pirate)
 pirate.MouseButton1Click:Connect(function()
 	setTeam("Pirates")
 end)
+
+-- ================= SEA / PLACE ID =================
+local PLACE_FIRST_SEA  = 2753915549
+local PLACE_SECOND_SEA = 4442272183
+local PLACE_THIRD_SEA  = 7449423635
+
+local function getSea()
+	if game.PlaceId == PLACE_SECOND_SEA then
+		return 2
+	elseif game.PlaceId == PLACE_THIRD_SEA then
+		return 3
+	else
+		return 1
+	end
+end
+
+local CURRENT_SEA = getSea()
+
 -- ================= TELEPORT =================
 criarSecao("TELEPORT",190,right)
 
@@ -379,10 +397,12 @@ local function CancelTeleport()
 	end
 end
 
--- ================= ILHAS SEA 2 =================
-local TeleportIslands = {
+-- ================= ILHAS POR SEA =================
+
+-- 🌊 SECOND SEA
+local TeleportIslands_Sea2 = {
 	{nome = "Café",              cf = CFrame.new(-380, 80, 300)},
-	{nome = "manção",           cf = CFrame.new(-390, 332, 715)},
+	{nome = "Mansão",            cf = CFrame.new(-390, 332, 715)},
 	{nome = "Green Zone",        cf = CFrame.new(-2221, 80,  -2704)},
 	{nome = "Graveyard",         cf = CFrame.new(-5429, 55,  -745)},
 	{nome = "Cursed Ship",       cf = CFrame.new(-6528, 90,  -162)},
@@ -391,6 +411,26 @@ local TeleportIslands = {
 	{nome = "Ice Castle",        cf = CFrame.new(5589,  35,  -6354)},
 	{nome = "Forgotten Island",  cf = CFrame.new(-3050, 255, -10170)},
 }
+
+-- 🌋 THIRD SEA
+local TeleportIslands_Sea3 = {
+	{nome = "Porto",             cf = CFrame.new(-290, 45, 5450)},
+	{nome = "Hydra",             cf = CFrame.new(5228, 604, 345)},
+	{nome = "Grande arvore",     cf = CFrame.new(2275, 25, -6400)},
+	{nome = "Tartaruga",         cf = CFrame.new(-11000, 331, -8700)},
+	{nome = "Castelo",           cf = CFrame.new(-5500, 313, -3000)},
+	{nome = "Castelo",           cf = CFrame.new(-9500, 142, 5500)},
+	{nome = "Ilha doçe",         cf = CFrame.new(-11500, 20, 3000)},
+}
+local TeleportIslands
+
+if CURRENT_SEA == 2 then
+	TeleportIslands = TeleportIslands_Sea2
+elseif CURRENT_SEA == 3 then
+	TeleportIslands = TeleportIslands_Sea3
+else
+	TeleportIslands = {}
+end
 
 local islandIndex = 1
 
@@ -421,7 +461,9 @@ islandLabel.BackgroundTransparency = 1
 islandLabel.TextColor3 = Color3.new(1,1,1)
 islandLabel.Font = Enum.Font.GothamBold
 islandLabel.TextSize = 16
-islandLabel.Text = "ILHA: "..TeleportIslands[islandIndex].nome
+islandLabel.Text = TeleportIslands[1]
+	and ("SEA "..CURRENT_SEA.." | "..TeleportIslands[islandIndex].nome)
+	or "SEA "..CURRENT_SEA.." | SEM TELEPORT"
 
 -- BOTÃO >
 local nextBtn = Instance.new("TextButton", islandFrame)
@@ -435,7 +477,16 @@ nextBtn.BackgroundTransparency = 1
 
 -- FUNÇÕES
 local function atualizarIlha()
-	islandLabel.Text = "ILHA: "..TeleportIslands[islandIndex].nome
+	if not TeleportIslands[1] then
+		islandLabel.Text = "SEA "..CURRENT_SEA.." | SEM TELEPORT"
+		return
+	end
+
+	if islandIndex > #TeleportIslands then
+		islandIndex = 1
+	end
+
+	islandLabel.Text = "SEA "..CURRENT_SEA.." | "..TeleportIslands[islandIndex].nome
 end
 
 prevBtn.MouseButton1Click:Connect(function()
@@ -466,7 +517,9 @@ teleportBtn.TextSize = 18
 Instance.new("UICorner", teleportBtn)
 
 teleportBtn.MouseButton1Click:Connect(function()
-	TweenTeleport(TeleportIslands[islandIndex].cf)
+	if TeleportIslands[islandIndex] then
+		TweenTeleport(TeleportIslands[islandIndex].cf)
+	end
 end)
 
 -- ================= BOTÃO CANCELAR =================
