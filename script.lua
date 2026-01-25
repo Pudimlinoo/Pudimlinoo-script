@@ -186,7 +186,7 @@ local noclip = false
 local floorEnabled = false
 local floor
 local tpSpeed = 0
-
+local altPressed = false
 -- ESP
 local espOnlyEnemies = false
 local espObjects = {}
@@ -580,44 +580,55 @@ local keys = {
 	Space=false, Ctrl=false
 }
 
-local function getRoot()
+local function getFlyRoot()
 	return player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 end
 
 -- ================= INPUT =================
-UserInputService.InputBegan:Connect(function(i,gp)
+UserInputService.InputBegan:Connect(function(i, gp)
 	if gp then return end
 
-	if i.KeyCode == Enum.KeyCode.H then
+	-- ALT pressionado
+	if i.KeyCode == Enum.KeyCode.LeftAlt or i.KeyCode == Enum.KeyCode.RightAlt then
+		altPressed = true
+	end
+
+	-- ALT + CLICK ESQUERDO
+	if altPressed and i.UserInputType == Enum.UserInputType.MouseButton1 then
 		flying = not flying
-		local root = getRoot()
+		local root = getFlyRoot()
 		if root then
 			root.Anchored = flying
 		end
 	end
 
-	if i.KeyCode == Enum.KeyCode.W then keys.W=true end
-	if i.KeyCode == Enum.KeyCode.A then keys.A=true end
-	if i.KeyCode == Enum.KeyCode.S then keys.S=true end
-	if i.KeyCode == Enum.KeyCode.D then keys.D=true end
-	if i.KeyCode == Enum.KeyCode.Space then keys.Space=true end
-	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl=true end
+	if i.KeyCode == Enum.KeyCode.W then keys.W = true end
+	if i.KeyCode == Enum.KeyCode.A then keys.A = true end
+	if i.KeyCode == Enum.KeyCode.S then keys.S = true end
+	if i.KeyCode == Enum.KeyCode.D then keys.D = true end
+	if i.KeyCode == Enum.KeyCode.Space then keys.Space = true end
+	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl = true end
 end)
 
 UserInputService.InputEnded:Connect(function(i)
-	if i.KeyCode == Enum.KeyCode.W then keys.W=false end
-	if i.KeyCode == Enum.KeyCode.A then keys.A=false end
-	if i.KeyCode == Enum.KeyCode.S then keys.S=false end
-	if i.KeyCode == Enum.KeyCode.D then keys.D=false end
-	if i.KeyCode == Enum.KeyCode.Space then keys.Space=false end
-	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl=false end
+	if i.KeyCode == Enum.KeyCode.LeftAlt or i.KeyCode == Enum.KeyCode.RightAlt then
+		altPressed = false
+	end
+
+	if i.KeyCode == Enum.KeyCode.W then keys.W = false end
+	if i.KeyCode == Enum.KeyCode.A then keys.A = false end
+	if i.KeyCode == Enum.KeyCode.S then keys.S = false end
+	if i.KeyCode == Enum.KeyCode.D then keys.D = false end
+	if i.KeyCode == Enum.KeyCode.Space then keys.Space = false end
+	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl = false end
 end)
+
 
 -- ================= LOOP DO FLY =================
 RunService.RenderStepped:Connect(function()
 	if not flying then return end
 
-	local root = getRoot()
+	local root = getFlyRoot()
 	if not root then return end
 
 	local cam = workspace.CurrentCamera
