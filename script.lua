@@ -1,60 +1,3 @@
--- ================= KEY SYSTEM =================
-local KEY_CORRETA = "Pudimlinoo"
-
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-
-local function pedirKey()
-	local gui = Instance.new("ScreenGui", player.PlayerGui)
-	gui.Name = "KeySystem"
-
-	local frame = Instance.new("Frame", gui)
-	frame.Size = UDim2.new(0,300,0,160)
-	frame.Position = UDim2.new(0.5,-150,0.5,-80)
-	frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
-	frame.BorderSizePixel = 0
-	Instance.new("UICorner", frame)
-
-	local title = Instance.new("TextLabel", frame)
-	title.Size = UDim2.new(1,0,0,35)
-	title.BackgroundTransparency = 1
-	title.Text = "🔐 Key System"
-	title.TextColor3 = Color3.new(1,1,1)
-	title.Font = Enum.Font.GothamBold
-	title.TextSize = 20
-
-	local box = Instance.new("TextBox", frame)
-	box.Position = UDim2.new(0.1,0,0,55)
-	box.Size = UDim2.new(0.8,0,0,30)
-	box.PlaceholderText = "Digite a key"
-	box.Text = ""
-	box.Font = Enum.Font.SourceSansBold
-	box.TextSize = 18
-	box.BackgroundColor3 = Color3.fromRGB(40,40,40)
-	box.TextColor3 = Color3.new(1,1,1)
-	Instance.new("UICorner", box)
-
-	local btn = Instance.new("TextButton", frame)
-	btn.Position = UDim2.new(0.1,0,0,100)
-	btn.Size = UDim2.new(0.8,0,0,30)
-	btn.Text = "CONFIRMAR"
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 18
-	btn.BackgroundColor3 = Color3.fromRGB(0,140,0)
-	btn.TextColor3 = Color3.new(1,1,1)
-	Instance.new("UICorner", btn)
-
-	btn.MouseButton1Click:Connect(function()
-		if box.Text == KEY_CORRETA then
-			gui:Destroy()
-			ScriptPrincipal()
-		else
-			box.Text = ""
-			box.PlaceholderText = "Key incorreta!"
-		end
-	end)
-end
-
 -- ================= SCRIPT PRINCIPAL =================
 function ScriptPrincipal()
 
@@ -720,5 +663,3 @@ end)
 
 end
 
--- inicia o key system
-pedirKey()
