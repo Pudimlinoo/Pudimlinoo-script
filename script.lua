@@ -322,7 +322,7 @@ end
 -- ================= ILHAS SEA 2 =================
 local TeleportIslands = {
 	{nome = "Café",              cf = CFrame.new(-380, 80, 300)},
-	{nome = "manção",           cf = CFrame.new(-390, 332, 715)},
+	{nome = "mansão",            cf = CFrame.new(-390, 332, 715)},
 	{nome = "Green Zone",        cf = CFrame.new(-2221, 80,  -2704)},
 	{nome = "Graveyard",         cf = CFrame.new(-5429, 55,  -745)},
 	{nome = "Cursed Ship",       cf = CFrame.new(-6528, 90,  -162)},
