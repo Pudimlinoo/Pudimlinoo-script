@@ -657,6 +657,3 @@ player.CharacterAdded:Connect(function(char)
 	end
 	flying = false
 end)
-
-end
-
