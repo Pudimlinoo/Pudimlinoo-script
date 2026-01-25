@@ -246,7 +246,7 @@ local noclip = false
 local floorEnabled = false
 local floor
 local tpSpeed = 0
-local altPressed = false
+
 -- ESP
 local espOnlyEnemies = false
 local espObjects = {}
@@ -382,7 +382,7 @@ end
 -- ================= ILHAS SEA 2 =================
 local TeleportIslands = {
 	{nome = "Café",              cf = CFrame.new(-380, 80, 300)},
-	{nome = "mansão",            cf = CFrame.new(-390, 332, 715)},
+	{nome = "manção",           cf = CFrame.new(-390, 332, 715)},
 	{nome = "Green Zone",        cf = CFrame.new(-2221, 80,  -2704)},
 	{nome = "Graveyard",         cf = CFrame.new(-5429, 55,  -745)},
 	{nome = "Cursed Ship",       cf = CFrame.new(-6528, 90,  -162)},
@@ -607,7 +607,7 @@ local Camera = workspace.CurrentCamera
 
 local function aplicarZoom()
 	player.CameraMinZoomDistance = 0.5
-	player.CameraMaxZoomDistance = 1000
+	player.CameraMaxZoomDistance = 500
 	Camera.CameraType = Enum.CameraType.Custom
 
 	local char = player.Character
@@ -640,55 +640,44 @@ local keys = {
 	Space=false, Ctrl=false
 }
 
-local function getFlyRoot()
+local function getRoot()
 	return player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 end
 
 -- ================= INPUT =================
-UserInputService.InputBegan:Connect(function(i, gp)
+UserInputService.InputBegan:Connect(function(i,gp)
 	if gp then return end
 
-	-- ALT pressionado
-	if i.KeyCode == Enum.KeyCode.LeftAlt or i.KeyCode == Enum.KeyCode.RightAlt then
-		altPressed = true
-	end
-
-	-- ALT + CLICK ESQUERDO
-	if altPressed and i.UserInputType == Enum.UserInputType.MouseButton1 then
+	if i.KeyCode == Enum.KeyCode.H then
 		flying = not flying
-		local root = getFlyRoot()
+		local root = getRoot()
 		if root then
 			root.Anchored = flying
 		end
 	end
 
-	if i.KeyCode == Enum.KeyCode.W then keys.W = true end
-	if i.KeyCode == Enum.KeyCode.A then keys.A = true end
-	if i.KeyCode == Enum.KeyCode.S then keys.S = true end
-	if i.KeyCode == Enum.KeyCode.D then keys.D = true end
-	if i.KeyCode == Enum.KeyCode.Space then keys.Space = true end
-	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl = true end
+	if i.KeyCode == Enum.KeyCode.W then keys.W=true end
+	if i.KeyCode == Enum.KeyCode.A then keys.A=true end
+	if i.KeyCode == Enum.KeyCode.S then keys.S=true end
+	if i.KeyCode == Enum.KeyCode.D then keys.D=true end
+	if i.KeyCode == Enum.KeyCode.Space then keys.Space=true end
+	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl=true end
 end)
 
 UserInputService.InputEnded:Connect(function(i)
-	if i.KeyCode == Enum.KeyCode.LeftAlt or i.KeyCode == Enum.KeyCode.RightAlt then
-		altPressed = false
-	end
-
-	if i.KeyCode == Enum.KeyCode.W then keys.W = false end
-	if i.KeyCode == Enum.KeyCode.A then keys.A = false end
-	if i.KeyCode == Enum.KeyCode.S then keys.S = false end
-	if i.KeyCode == Enum.KeyCode.D then keys.D = false end
-	if i.KeyCode == Enum.KeyCode.Space then keys.Space = false end
-	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl = false end
+	if i.KeyCode == Enum.KeyCode.W then keys.W=false end
+	if i.KeyCode == Enum.KeyCode.A then keys.A=false end
+	if i.KeyCode == Enum.KeyCode.S then keys.S=false end
+	if i.KeyCode == Enum.KeyCode.D then keys.D=false end
+	if i.KeyCode == Enum.KeyCode.Space then keys.Space=false end
+	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl=false end
 end)
-
 
 -- ================= LOOP DO FLY =================
 RunService.RenderStepped:Connect(function()
 	if not flying then return end
 
-	local root = getFlyRoot()
+	local root = getRoot()
 	if not root then return end
 
 	local cam = workspace.CurrentCamera
@@ -729,4 +718,7 @@ player.CharacterAdded:Connect(function(char)
 	flying = false
 end)
 
+end
+
+-- inicia o key system
 pedirKey()
