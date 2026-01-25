@@ -1,6 +1,3 @@
--- ================= SCRIPT PRINCIPAL =================
-function ScriptPrincipal()
-
 -- ================= SERVIÇOS =================
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
