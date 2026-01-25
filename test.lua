@@ -246,7 +246,7 @@ local noclip = false
 local floorEnabled = false
 local floor
 local tpSpeed = 0
-
+local altPressed = false
 -- ESP
 local espOnlyEnemies = false
 local espObjects = {}
@@ -345,24 +345,6 @@ Instance.new("UICorner",pirate)
 pirate.MouseButton1Click:Connect(function()
 	setTeam("Pirates")
 end)
-
--- ================= SEA / PLACE ID =================
-local PLACE_FIRST_SEA  = 2753915549
-local PLACE_SECOND_SEA = 4442272183
-local PLACE_THIRD_SEA  = 7449423635
-
-local function getSea()
-	if game.PlaceId == PLACE_SECOND_SEA then
-		return 2
-	elseif game.PlaceId == PLACE_THIRD_SEA then
-		return 3
-	else
-		return 1
-	end
-end
-
-local CURRENT_SEA = getSea()
-
 -- ================= TELEPORT =================
 criarSecao("TELEPORT",190,right)
 
@@ -397,12 +379,10 @@ local function CancelTeleport()
 	end
 end
 
--- ================= ILHAS POR SEA =================
-
--- 🌊 SECOND SEA
-local TeleportIslands_Sea2 = {
+-- ================= ILHAS SEA 2 =================
+local TeleportIslands = {
 	{nome = "Café",              cf = CFrame.new(-380, 80, 300)},
-	{nome = "Mansão",            cf = CFrame.new(-390, 332, 715)},
+	{nome = "mansão",            cf = CFrame.new(-390, 332, 715)},
 	{nome = "Green Zone",        cf = CFrame.new(-2221, 80,  -2704)},
 	{nome = "Graveyard",         cf = CFrame.new(-5429, 55,  -745)},
 	{nome = "Cursed Ship",       cf = CFrame.new(-6528, 90,  -162)},
@@ -411,26 +391,6 @@ local TeleportIslands_Sea2 = {
 	{nome = "Ice Castle",        cf = CFrame.new(5589,  35,  -6354)},
 	{nome = "Forgotten Island",  cf = CFrame.new(-3050, 255, -10170)},
 }
-
--- 🌋 THIRD SEA
-local TeleportIslands_Sea3 = {
-	{nome = "Porto",             cf = CFrame.new(-290, 45, 5450)},
-	{nome = "Hydra",             cf = CFrame.new(5228, 604, 345)},
-	{nome = "Grande arvore",     cf = CFrame.new(2275, 25, -6400)},
-	{nome = "Tartaruga",         cf = CFrame.new(-11000, 331, -8700)},
-	{nome = "Castelo",           cf = CFrame.new(-5500, 313, -3000)},
-	{nome = "Castelo",           cf = CFrame.new(-9500, 142, 5500)},
-	{nome = "Ilha doçe",         cf = CFrame.new(-11500, 20, 3000)},
-}
-local TeleportIslands
-
-if CURRENT_SEA == 2 then
-	TeleportIslands = TeleportIslands_Sea2
-elseif CURRENT_SEA == 3 then
-	TeleportIslands = TeleportIslands_Sea3
-else
-	TeleportIslands = {}
-end
 
 local islandIndex = 1
 
@@ -461,9 +421,7 @@ islandLabel.BackgroundTransparency = 1
 islandLabel.TextColor3 = Color3.new(1,1,1)
 islandLabel.Font = Enum.Font.GothamBold
 islandLabel.TextSize = 16
-islandLabel.Text = TeleportIslands[1]
-	and ("SEA "..CURRENT_SEA.." | "..TeleportIslands[islandIndex].nome)
-	or "SEA "..CURRENT_SEA.." | SEM TELEPORT"
+islandLabel.Text = "ILHA: "..TeleportIslands[islandIndex].nome
 
 -- BOTÃO >
 local nextBtn = Instance.new("TextButton", islandFrame)
@@ -477,16 +435,7 @@ nextBtn.BackgroundTransparency = 1
 
 -- FUNÇÕES
 local function atualizarIlha()
-	if not TeleportIslands[1] then
-		islandLabel.Text = "SEA "..CURRENT_SEA.." | SEM TELEPORT"
-		return
-	end
-
-	if islandIndex > #TeleportIslands then
-		islandIndex = 1
-	end
-
-	islandLabel.Text = "SEA "..CURRENT_SEA.." | "..TeleportIslands[islandIndex].nome
+	islandLabel.Text = "ILHA: "..TeleportIslands[islandIndex].nome
 end
 
 prevBtn.MouseButton1Click:Connect(function()
@@ -517,9 +466,7 @@ teleportBtn.TextSize = 18
 Instance.new("UICorner", teleportBtn)
 
 teleportBtn.MouseButton1Click:Connect(function()
-	if TeleportIslands[islandIndex] then
-		TweenTeleport(TeleportIslands[islandIndex].cf)
-	end
+	TweenTeleport(TeleportIslands[islandIndex].cf)
 end)
 
 -- ================= BOTÃO CANCELAR =================
@@ -660,7 +607,7 @@ local Camera = workspace.CurrentCamera
 
 local function aplicarZoom()
 	player.CameraMinZoomDistance = 0.5
-	player.CameraMaxZoomDistance = 500
+	player.CameraMaxZoomDistance = 1000
 	Camera.CameraType = Enum.CameraType.Custom
 
 	local char = player.Character
@@ -693,44 +640,55 @@ local keys = {
 	Space=false, Ctrl=false
 }
 
-local function getRoot()
+local function getFlyRoot()
 	return player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 end
 
 -- ================= INPUT =================
-UserInputService.InputBegan:Connect(function(i,gp)
+UserInputService.InputBegan:Connect(function(i, gp)
 	if gp then return end
 
-	if i.KeyCode == Enum.KeyCode.H then
+	-- ALT pressionado
+	if i.KeyCode == Enum.KeyCode.LeftAlt or i.KeyCode == Enum.KeyCode.RightAlt then
+		altPressed = true
+	end
+
+	-- ALT + CLICK ESQUERDO
+	if altPressed and i.UserInputType == Enum.UserInputType.MouseButton1 then
 		flying = not flying
-		local root = getRoot()
+		local root = getFlyRoot()
 		if root then
 			root.Anchored = flying
 		end
 	end
 
-	if i.KeyCode == Enum.KeyCode.W then keys.W=true end
-	if i.KeyCode == Enum.KeyCode.A then keys.A=true end
-	if i.KeyCode == Enum.KeyCode.S then keys.S=true end
-	if i.KeyCode == Enum.KeyCode.D then keys.D=true end
-	if i.KeyCode == Enum.KeyCode.Space then keys.Space=true end
-	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl=true end
+	if i.KeyCode == Enum.KeyCode.W then keys.W = true end
+	if i.KeyCode == Enum.KeyCode.A then keys.A = true end
+	if i.KeyCode == Enum.KeyCode.S then keys.S = true end
+	if i.KeyCode == Enum.KeyCode.D then keys.D = true end
+	if i.KeyCode == Enum.KeyCode.Space then keys.Space = true end
+	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl = true end
 end)
 
 UserInputService.InputEnded:Connect(function(i)
-	if i.KeyCode == Enum.KeyCode.W then keys.W=false end
-	if i.KeyCode == Enum.KeyCode.A then keys.A=false end
-	if i.KeyCode == Enum.KeyCode.S then keys.S=false end
-	if i.KeyCode == Enum.KeyCode.D then keys.D=false end
-	if i.KeyCode == Enum.KeyCode.Space then keys.Space=false end
-	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl=false end
+	if i.KeyCode == Enum.KeyCode.LeftAlt or i.KeyCode == Enum.KeyCode.RightAlt then
+		altPressed = false
+	end
+
+	if i.KeyCode == Enum.KeyCode.W then keys.W = false end
+	if i.KeyCode == Enum.KeyCode.A then keys.A = false end
+	if i.KeyCode == Enum.KeyCode.S then keys.S = false end
+	if i.KeyCode == Enum.KeyCode.D then keys.D = false end
+	if i.KeyCode == Enum.KeyCode.Space then keys.Space = false end
+	if i.KeyCode == Enum.KeyCode.LeftControl then keys.Ctrl = false end
 end)
+
 
 -- ================= LOOP DO FLY =================
 RunService.RenderStepped:Connect(function()
 	if not flying then return end
 
-	local root = getRoot()
+	local root = getFlyRoot()
 	if not root then return end
 
 	local cam = workspace.CurrentCamera
@@ -771,7 +729,4 @@ player.CharacterAdded:Connect(function(char)
 	flying = false
 end)
 
-end
-
--- inicia o key system
 pedirKey()
