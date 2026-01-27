@@ -529,7 +529,7 @@ UserInputService.InputBegan:Connect(function(i, gp)
 	end
 end)
 
-criarBotaoToggle("ALVOS: INIMIGOS",405,right,function(v)
+criarBotaoToggle("SÓ INIMIGOS",405,right,function(v)
 
 	aimMode = v and "ENEMIES" or "ALL"
 	lockedPart = nil
