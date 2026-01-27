@@ -462,6 +462,24 @@ local function isEnemyAim(plr)
 	return aimMode == "ALL" or not sameTeam(plr)
 end
 
+local function hasLineOfSight(char, part)
+	local origin = Camera.CFrame.Position
+	local direction = (part.Position - origin)
+
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Blacklist
+	params.FilterDescendantsInstances = {player.Character}
+	params.IgnoreWater = true
+
+	local result = workspace:Raycast(origin, direction, params)
+
+	if result then
+		return result.Instance:IsDescendantOf(char)
+	end
+
+	return false
+end
+
 local function getTarget()
 	local bestPart, bestHum
 	local bestDist = math.huge
@@ -490,7 +508,10 @@ local function getTarget()
 					local dist = (part.Position - camPos).Magnitude
 					if dist <= AIM_MAX_DISTANCE and dist < bestDist then
 						local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
-						if onScreen and (Vector2.new(sp.X, sp.Y) - center).Magnitude <= AIM_FOV_RADIUS then
+						if onScreen 
+	                     and (Vector2.new(sp.X, sp.Y) - center).Magnitude <= AIM_FOV_RADIUS
+	                     and hasLineOfSight(plr.Character, part) 
+                    then
 							bestDist = dist
 							bestPart = part
 							bestHum = hum
