@@ -88,10 +88,15 @@ left.Size = UDim2.new(0.48,0,1,-45)
 left.Position = UDim2.new(0.02,0,0,40)
 left.BackgroundTransparency = 1
 
-local right = Instance.new("Frame", frame)
+-- 👉 Agora a direita vira SCROLLINGFRAME
+local right = Instance.new("ScrollingFrame", frame)
 right.Size = UDim2.new(0.48,0,1,-45)
 right.Position = UDim2.new(0.5,0,0,40)
 right.BackgroundTransparency = 1
+right.CanvasSize = UDim2.new(0,0,0,650) -- 👈 altura total do conteúdo
+right.ScrollBarImageTransparency = 0.2
+right.ScrollBarThickness = 6
+right.AutomaticCanvasSize = Enum.AutomaticSize.None
 
 -- ================= UI HELPERS =================
 local function criarSecao(txt,y,p)
@@ -423,7 +428,138 @@ Instance.new("UICorner", cancelBtn)
 cancelBtn.MouseButton1Click:Connect(function()
 	CancelTeleport()
 end)
+-- ================= AIMBOT (DEPOIS DO TELEPORT) =================
+criarSecao("AIMBOT",370,right)
 
+local AIM_MAX_DISTANCE = 500
+local AIM_MIN_FOV = 50
+local AIM_MAX_FOV = 500
+local AIM_FOV_RADIUS = 200
+
+local aimbotEnabled = false
+local aimMode = "ALL"       -- ALL | ENEMIES
+local aimPartMode = "BOTH" -- HEAD | TORSO | BOTH
+
+local lockedPart, lockedHumanoid
+
+local function getTorso(char)
+	return char:FindFirstChild("HumanoidRootPart")
+		or char:FindFirstChild("UpperTorso")
+		or char:FindFirstChild("Torso")
+end
+
+local function sameTeam(plr)
+	if player.Team and plr.Team then
+		return player.Team == plr.Team
+	end
+	if player.TeamColor and plr.TeamColor then
+		return player.TeamColor == plr.TeamColor
+	end
+	return false
+end
+
+local function isEnemyAim(plr)
+	return aimMode == "ALL" or not sameTeam(plr)
+end
+
+local function getTarget()
+	local bestPart, bestHum
+	local bestDist = math.huge
+
+	local camPos = Camera.CFrame.Position
+	local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= player and plr.Character and isEnemyAim(plr) then
+			local hum = plr.Character:FindFirstChild("Humanoid")
+			if hum and hum.Health > 0 then
+				local head = plr.Character:FindFirstChild("Head")
+				local torso = getTorso(plr.Character)
+
+				local parts = {}
+				if aimPartMode == "HEAD" and head then
+					parts = { head }
+				elseif aimPartMode == "TORSO" and torso then
+					parts = { torso }
+				else
+					if head then table.insert(parts, head) end
+					if torso then table.insert(parts, torso) end
+				end
+
+				for _, part in ipairs(parts) do
+					local dist = (part.Position - camPos).Magnitude
+					if dist <= AIM_MAX_DISTANCE and dist < bestDist then
+						local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
+						if onScreen and (Vector2.new(sp.X, sp.Y) - center).Magnitude <= AIM_FOV_RADIUS then
+							bestDist = dist
+							bestPart = part
+							bestHum = hum
+						end
+					end
+				end
+			end
+		end
+	end
+
+	lockedHumanoid = bestHum
+	return bestPart
+end
+
+RunService.RenderStepped:Connect(function()
+	if not aimbotEnabled then return end
+
+	if not lockedPart then
+		lockedPart = getTarget()
+	end
+
+	if lockedPart and lockedHumanoid and lockedHumanoid.Health > 0 then
+		Camera.CFrame = CFrame.new(Camera.CFrame.Position, lockedPart.Position)
+	else
+		lockedPart, lockedHumanoid = nil, nil
+	end
+end)
+
+-- Botões no menu
+-- ================= TOGGLE AIMBOT NA TECLA F =================
+UserInputService.InputBegan:Connect(function(i, gp)
+	if gp then return end
+	if i.KeyCode == Enum.KeyCode.F then
+		aimbotEnabled = not aimbotEnabled
+		lockedPart, lockedHumanoid = nil, nil
+	end
+end)
+
+criarBotaoToggle("ALVOS: INIMIGOS",405,right,function(v)
+
+	aimMode = v and "ENEMIES" or "ALL"
+	lockedPart = nil
+end)
+
+criarBotaoToggle("MIRA: CABEÇA",450,right,function(v)
+	if v then
+		aimPartMode = "HEAD"
+	else
+		aimPartMode = "BOTH"
+	end
+	lockedPart = nil
+end)
+
+criarSlider("FOV AIM",AIM_MIN_FOV,AIM_MAX_FOV,AIM_FOV_RADIUS,500,right,function(v)
+	AIM_FOV_RADIUS = v
+end)
+
+-- FOV Circle (visual)
+local fovCircle = Drawing.new("Circle")
+fovCircle.Thickness = 2
+fovCircle.NumSides = 80
+fovCircle.Filled = false
+fovCircle.Color = Color3.fromRGB(0,170,255)
+
+RunService.RenderStepped:Connect(function()
+	fovCircle.Visible = aimbotEnabled
+	fovCircle.Radius = AIM_FOV_RADIUS
+	fovCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+end)
 
 -- ================= LOOP =================
 RunService.RenderStepped:Connect(function()
