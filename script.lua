@@ -534,12 +534,6 @@ RunService.RenderStepped:Connect(function()
 	end
 
 	if lockedPart and lockedHumanoid and lockedHumanoid.Health > 0 then
-		-- 👇 Se o alvo entrou atrás de parede, perde o lock
-		if not hasLineOfSight(lockedHumanoid.Parent, lockedPart) then
-			lockedPart, lockedHumanoid = nil, nil
-			return
-		end
-
 		Camera.CFrame = CFrame.new(Camera.CFrame.Position, lockedPart.Position)
 	else
 		lockedPart, lockedHumanoid = nil, nil
