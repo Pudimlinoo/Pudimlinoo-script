@@ -908,5 +908,6 @@ player.CharacterAdded:Connect(function(char)
 	end
 	flying = false
 end)
--- inicia o key system
+
+-- ================= START =================
 pedirKey()
