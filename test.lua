@@ -4,9 +4,24 @@ local KEY_CORRETA = "Pudimlinoo"
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
+-- GUI SAFE (executor friendly)
+local function getParentGui()
+	if gethui then
+		return gethui()
+	end
+	return player:WaitForChild("PlayerGui")
+end
+
 local function pedirKey()
-	local gui = Instance.new("ScreenGui", player.PlayerGui)
+	-- evita duplicar
+	if getParentGui():FindFirstChild("KeySystem") then
+		return
+	end
+
+	local gui = Instance.new("ScreenGui")
 	gui.Name = "KeySystem"
+	gui.ResetOnSpawn = false
+	gui.Parent = getParentGui()
 
 	local frame = Instance.new("Frame", gui)
 	frame.Size = UDim2.new(0,300,0,160)
@@ -27,6 +42,7 @@ local function pedirKey()
 	box.Position = UDim2.new(0.1,0,0,55)
 	box.Size = UDim2.new(0.8,0,0,30)
 	box.PlaceholderText = "Digite a key"
+	box.ClearTextOnFocus = false
 	box.Text = ""
 	box.Font = Enum.Font.SourceSansBold
 	box.TextSize = 18
@@ -47,7 +63,15 @@ local function pedirKey()
 	btn.MouseButton1Click:Connect(function()
 		if box.Text == KEY_CORRETA then
 			gui:Destroy()
-			ScriptPrincipal()
+
+			-- proteção extra
+			local ok, err = pcall(function()
+				ScriptPrincipal()
+			end)
+
+			if not ok then
+				warn("Erro ao iniciar script:", err)
+			end
 		else
 			box.Text = ""
 			box.PlaceholderText = "Key incorreta!"
@@ -57,7 +81,6 @@ end
 
 -- ================= SCRIPT PRINCIPAL =================
 function ScriptPrincipal()
-
 -- ================= SERVIÇOS =================
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
