@@ -1,5 +1,5 @@
 -- ================= SISTEMA DE KEY =================
-local KEY_CORRETA = "" -- <<< MUDA A KEY AQUI
+local KEY_CORRETA = "Temp-key-242" -- <<< MUDA A KEY AQUI
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
