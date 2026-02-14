@@ -1,3 +1,132 @@
+-- ================= SISTEMA DE KEY =================
+local KEY_CORRETA = "PUDIM-2026"  -- <<< MUDA A KEY AQUI
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local player = Players.LocalPlayer
+
+-- Blur
+local blur = Instance.new("BlurEffect", Lighting)
+blur.Size = 0
+
+-- GUI
+local keyGui = Instance.new("ScreenGui", player.PlayerGui)
+keyGui.Name = "KeySystem"
+keyGui.ResetOnSpawn = false
+
+local bg = Instance.new("Frame", keyGui)
+bg.Size = UDim2.new(1,0,1,0)
+bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
+bg.BackgroundTransparency = 1
+
+-- Container
+local box = Instance.new("Frame", bg)
+box.Size = UDim2.new(0,420,0,260)
+box.Position = UDim2.new(0.5,-210,0.5,-130)
+box.BackgroundColor3 = Color3.fromRGB(20,20,20)
+box.BackgroundTransparency = 0.05
+box.AnchorPoint = Vector2.new(0.5,0.5)
+box.Scale = Vector3.new(0.8,0.8,0.8)
+Instance.new("UICorner", box).CornerRadius = UDim.new(0,18)
+
+-- Shadow
+local shadow = Instance.new("ImageLabel", box)
+shadow.AnchorPoint = Vector2.new(0.5,0.5)
+shadow.Position = UDim2.new(0.5,0,0.5,0)
+shadow.Size = UDim2.new(1,50,1,50)
+shadow.Image = "rbxassetid://1316045217"
+shadow.ImageTransparency = 0.6
+shadow.BackgroundTransparency = 1
+shadow.ZIndex = 0
+
+-- Título
+local title = Instance.new("TextLabel", box)
+title.Size = UDim2.new(1,0,0,50)
+title.BackgroundTransparency = 1
+title.Text = "🔐 PudimLinoo Key System"
+title.TextColor3 = Color3.fromRGB(255,255,255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 22
+
+-- Sub
+local sub = Instance.new("TextLabel", box)
+sub.Position = UDim2.new(0,0,0,50)
+sub.Size = UDim2.new(1,0,0,30)
+sub.BackgroundTransparency = 1
+sub.Text = "Digite a key para acessar o script"
+sub.TextColor3 = Color3.fromRGB(180,180,180)
+sub.Font = Enum.Font.Gotham
+sub.TextSize = 14
+
+-- Input
+local input = Instance.new("TextBox", box)
+input.Position = UDim2.new(0.1,0,0,95)
+input.Size = UDim2.new(0.8,0,0,42)
+input.BackgroundColor3 = Color3.fromRGB(30,30,30)
+input.TextColor3 = Color3.fromRGB(255,255,255)
+input.PlaceholderText = "Digite a key aqui..."
+input.Font = Enum.Font.Gotham
+input.TextSize = 16
+input.ClearTextOnFocus = false
+Instance.new("UICorner", input).CornerRadius = UDim.new(0,10)
+
+-- Botão
+local btn = Instance.new("TextButton", box)
+btn.Position = UDim2.new(0.1,0,0,150)
+btn.Size = UDim2.new(0.8,0,0,45)
+btn.BackgroundColor3 = Color3.fromRGB(0,140,255)
+btn.Text = "VERIFICAR KEY"
+btn.TextColor3 = Color3.new(1,1,1)
+btn.Font = Enum.Font.GothamBold
+btn.TextSize = 18
+Instance.new("UICorner", btn).CornerRadius = UDim.new(0,12)
+
+-- Status
+local status = Instance.new("TextLabel", box)
+status.Position = UDim2.new(0,0,0,205)
+status.Size = UDim2.new(1,0,0,30)
+status.BackgroundTransparency = 1
+status.Text = ""
+status.TextColor3 = Color3.fromRGB(255,80,80)
+status.Font = Enum.Font.GothamBold
+status.TextSize = 14
+
+-- Animação entrada
+box.Size = UDim2.new(0,0,0,0)
+game:GetService("TweenService"):Create(box,TweenInfo.new(0.5,Enum.EasingStyle.Back),{
+	Size = UDim2.new(0,420,0,260)
+}):Play()
+
+game:GetService("TweenService"):Create(blur,TweenInfo.new(0.5),{Size = 18}):Play()
+
+-- Função validar
+local function liberar()
+	game:GetService("TweenService"):Create(blur,TweenInfo.new(0.4),{Size = 0}):Play()
+	game:GetService("TweenService"):Create(box,TweenInfo.new(0.4),{
+		Size = UDim2.new(0,0,0,0)
+	}):Play()
+	task.wait(0.45)
+	keyGui:Destroy()
+end
+
+btn.MouseButton1Click:Connect(function()
+	if input.Text == KEY_CORRETA then
+		status.TextColor3 = Color3.fromRGB(80,255,120)
+		status.Text = "✅ Key correta! Acesso liberado..."
+		liberar()
+	else
+		status.TextColor3 = Color3.fromRGB(255,80,80)
+		status.Text = "❌ Key incorreta!"
+		btn.BackgroundColor3 = Color3.fromRGB(180,40,40)
+		task.wait(0.2)
+		btn.BackgroundColor3 = Color3.fromRGB(0,140,255)
+	end
+end)
+
+-- Bloqueia tudo até liberar
+repeat task.wait() until not keyGui.Parent
+-- ================= FIM DO SISTEMA DE KEY =================
+
 -- ================= SERVIÇOS =================
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
