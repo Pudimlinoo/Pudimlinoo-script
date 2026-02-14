@@ -1,89 +1,108 @@
 -- ================= SISTEMA DE KEY =================
-local KEY_CORRETA = "PUDIM-2026"  -- <<< MUDA A KEY AQUI
+local KEY_CORRETA = "PUDIM-2026" -- <<< MUDA A KEY AQUI
 
 local Players = game:GetService("Players")
-local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
-
--- Blur
-local blur = Instance.new("BlurEffect", Lighting)
-blur.Size = 0
 
 -- GUI
 local keyGui = Instance.new("ScreenGui", player.PlayerGui)
 keyGui.Name = "KeySystem"
 keyGui.ResetOnSpawn = false
 
-local bg = Instance.new("Frame", keyGui)
-bg.Size = UDim2.new(1,0,1,0)
-bg.BackgroundColor3 = Color3.fromRGB(0,0,0)
-bg.BackgroundTransparency = 1
+local frame = Instance.new("Frame", keyGui)
+frame.Size = UDim2.new(0,420,0,260)
+frame.Position = UDim2.new(0.5,0,0.5,0)
+frame.AnchorPoint = Vector2.new(0.5,0.5)
+frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+frame.BackgroundTransparency = 0.1
+frame.BorderSizePixel = 0
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,16)
 
--- Container
-local box = Instance.new("Frame", bg)
-box.Size = UDim2.new(0,420,0,260)
-box.Position = UDim2.new(0.5,-210,0.5,-130)
-box.BackgroundColor3 = Color3.fromRGB(20,20,20)
-box.BackgroundTransparency = 0.05
-box.AnchorPoint = Vector2.new(0.5,0.5)
-box.Scale = Vector3.new(0.8,0.8,0.8)
-Instance.new("UICorner", box).CornerRadius = UDim.new(0,18)
-
--- Shadow
-local shadow = Instance.new("ImageLabel", box)
+-- sombra
+local shadow = Instance.new("ImageLabel", frame)
 shadow.AnchorPoint = Vector2.new(0.5,0.5)
 shadow.Position = UDim2.new(0.5,0,0.5,0)
-shadow.Size = UDim2.new(1,50,1,50)
+shadow.Size = UDim2.new(1,40,1,40)
 shadow.Image = "rbxassetid://1316045217"
 shadow.ImageTransparency = 0.6
 shadow.BackgroundTransparency = 1
 shadow.ZIndex = 0
 
--- Título
-local title = Instance.new("TextLabel", box)
-title.Size = UDim2.new(1,0,0,50)
-title.BackgroundTransparency = 1
+-- titulo
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1,0,0,38)
+title.BackgroundColor3 = Color3.fromRGB(18,18,18)
+title.BackgroundTransparency = 0.2
 title.Text = "🔐 PudimLinoo Key System"
-title.TextColor3 = Color3.fromRGB(255,255,255)
+title.TextColor3 = Color3.fromRGB(235,235,235)
 title.Font = Enum.Font.GothamBold
-title.TextSize = 22
+title.TextSize = 20
+Instance.new("UICorner", title).CornerRadius = UDim.new(0,16)
 
--- Sub
-local sub = Instance.new("TextLabel", box)
-sub.Position = UDim2.new(0,0,0,50)
-sub.Size = UDim2.new(1,0,0,30)
-sub.BackgroundTransparency = 1
-sub.Text = "Digite a key para acessar o script"
-sub.TextColor3 = Color3.fromRGB(180,180,180)
-sub.Font = Enum.Font.Gotham
-sub.TextSize = 14
+-- drag
+local dragging, dragStart, startPos
+title.InputBegan:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = i.Position
+		startPos = frame.Position
+	end
+end)
 
--- Input
-local input = Instance.new("TextBox", box)
+UserInputService.InputChanged:Connect(function(i)
+	if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = i.Position - dragStart
+		frame.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + delta.X,
+			startPos.Y.Scale, startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+title.InputEnded:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
+	end
+end)
+
+-- texto
+local info = Instance.new("TextLabel", frame)
+info.Position = UDim2.new(0,0,0,55)
+info.Size = UDim2.new(1,0,0,30)
+info.BackgroundTransparency = 1
+info.Text = "Digite a key para liberar o menu"
+info.TextColor3 = Color3.fromRGB(180,180,180)
+info.Font = Enum.Font.Gotham
+info.TextSize = 14
+
+-- input
+local input = Instance.new("TextBox", frame)
 input.Position = UDim2.new(0.1,0,0,95)
-input.Size = UDim2.new(0.8,0,0,42)
+input.Size = UDim2.new(0.8,0,0,40)
 input.BackgroundColor3 = Color3.fromRGB(30,30,30)
 input.TextColor3 = Color3.fromRGB(255,255,255)
-input.PlaceholderText = "Digite a key aqui..."
+input.PlaceholderText = "Digite a key..."
 input.Font = Enum.Font.Gotham
 input.TextSize = 16
 input.ClearTextOnFocus = false
 Instance.new("UICorner", input).CornerRadius = UDim.new(0,10)
 
--- Botão
-local btn = Instance.new("TextButton", box)
-btn.Position = UDim2.new(0.1,0,0,150)
-btn.Size = UDim2.new(0.8,0,0,45)
-btn.BackgroundColor3 = Color3.fromRGB(0,140,255)
-btn.Text = "VERIFICAR KEY"
+-- botão
+local btn = Instance.new("TextButton", frame)
+btn.Position = UDim2.new(0.1,0,0,145)
+btn.Size = UDim2.new(0.8,0,0,42)
+btn.BackgroundColor3 = Color3.fromRGB(0,120,180)
+btn.Text = "LIBERAR"
 btn.TextColor3 = Color3.new(1,1,1)
 btn.Font = Enum.Font.GothamBold
 btn.TextSize = 18
 Instance.new("UICorner", btn).CornerRadius = UDim.new(0,12)
 
--- Status
-local status = Instance.new("TextLabel", box)
-status.Position = UDim2.new(0,0,0,205)
+-- status
+local status = Instance.new("TextLabel", frame)
+status.Position = UDim2.new(0,0,0,200)
 status.Size = UDim2.new(1,0,0,30)
 status.BackgroundTransparency = 1
 status.Text = ""
@@ -91,41 +110,39 @@ status.TextColor3 = Color3.fromRGB(255,80,80)
 status.Font = Enum.Font.GothamBold
 status.TextSize = 14
 
--- Animação entrada
-box.Size = UDim2.new(0,0,0,0)
-game:GetService("TweenService"):Create(box,TweenInfo.new(0.5,Enum.EasingStyle.Back),{
+-- animação entrada
+frame.Size = UDim2.new(0,0,0,0)
+TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
 	Size = UDim2.new(0,420,0,260)
 }):Play()
 
-game:GetService("TweenService"):Create(blur,TweenInfo.new(0.5),{Size = 18}):Play()
-
--- Função validar
-local function liberar()
-	game:GetService("TweenService"):Create(blur,TweenInfo.new(0.4),{Size = 0}):Play()
-	game:GetService("TweenService"):Create(box,TweenInfo.new(0.4),{
-		Size = UDim2.new(0,0,0,0)
-	}):Play()
-	task.wait(0.45)
-	keyGui:Destroy()
-end
+-- lógica
+local liberado = false
 
 btn.MouseButton1Click:Connect(function()
 	if input.Text == KEY_CORRETA then
 		status.TextColor3 = Color3.fromRGB(80,255,120)
-		status.Text = "✅ Key correta! Acesso liberado..."
-		liberar()
+		status.Text = "✅ Key correta! Liberando..."
+		liberado = true
+
+		TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+			Size = UDim2.new(0,0,0,0)
+		}):Play()
+
+		task.wait(0.35)
+		keyGui:Destroy()
 	else
 		status.TextColor3 = Color3.fromRGB(255,80,80)
 		status.Text = "❌ Key incorreta!"
-		btn.BackgroundColor3 = Color3.fromRGB(180,40,40)
+		btn.BackgroundColor3 = Color3.fromRGB(160,40,40)
 		task.wait(0.2)
-		btn.BackgroundColor3 = Color3.fromRGB(0,140,255)
+		btn.BackgroundColor3 = Color3.fromRGB(0,120,180)
 	end
 end)
 
--- Bloqueia tudo até liberar
-repeat task.wait() until not keyGui.Parent
--- ================= FIM DO SISTEMA DE KEY =================
+-- BLOQUEIO DO SCRIPT
+repeat task.wait() until liberado
+-- ================= FIM SISTEMA DE KEY =================
 
 -- ================= SERVIÇOS =================
 local Players = game:GetService("Players")
