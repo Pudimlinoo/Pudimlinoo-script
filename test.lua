@@ -815,10 +815,61 @@ end
 Players.PlayerAdded:Connect(criarESP)
 
 
--- ================= TOGGLE MENU =================
+-- ================= SISTEMA DE TOGGLE ANIMADO =================
+local menuOpen = true
+local TweenService = game:GetService("TweenService")
+
+-- estados iniciais
+frame.Visible = true
+frame.Size = UDim2.new(0,460,0,430)
+frame.BackgroundTransparency = 0.15
+
+local OPEN_SIZE = UDim2.new(0,460,0,430)
+local CLOSED_SIZE = UDim2.new(0,0,0,0)
+
+local OPEN_TRANSP = 0.15
+local CLOSED_TRANSP = 1
+
+local tweenInfo = TweenInfo.new(
+	0.35,
+	Enum.EasingStyle.Back,
+	Enum.EasingDirection.Out
+)
+
+local function openMenu()
+	frame.Visible = true
+	
+	-- reset antes da animação
+	frame.Size = CLOSED_SIZE
+	frame.BackgroundTransparency = 1
+
+	TweenService:Create(frame, tweenInfo, {
+		Size = OPEN_SIZE,
+		BackgroundTransparency = OPEN_TRANSP
+	}):Play()
+end
+
+local function closeMenu()
+	local tw = TweenService:Create(frame, tweenInfo, {
+		Size = CLOSED_SIZE,
+		BackgroundTransparency = CLOSED_TRANSP
+	})
+	
+	tw:Play()
+	tw.Completed:Wait()
+	frame.Visible = false
+end
+
 UserInputService.InputBegan:Connect(function(i,gp)
-	if not gp and i.KeyCode == Enum.KeyCode.G then
-		frame.Visible = not frame.Visible
+	if gp then return end
+	if i.KeyCode == Enum.KeyCode.G then
+		menuOpen = not menuOpen
+		
+		if menuOpen then
+			openMenu()
+		else
+			closeMenu()
+		end
 	end
 end)
 
