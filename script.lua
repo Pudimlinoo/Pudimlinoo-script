@@ -75,7 +75,7 @@ local title = Instance.new("TextLabel", frame)
 title.Size = UDim2.new(1,0,0,38)
 title.BackgroundColor3 = Color3.fromRGB(18,18,18)
 title.BackgroundTransparency = 0.2
-title.Text = "🍮 PudimLinoo Script"
+title.Text = "🍮|PudimLinoo Script"
 title.TextColor3 = Color3.fromRGB(235,235,235)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 20
@@ -590,7 +590,7 @@ criarBotaoToggle("MIRA: CABEÇA",450,right,function(v)
 	lockedPart = nil
 end)
 
-criarSlider("FOV AIM",AIM_MIN_FOV,AIM_MAX_FOV,AIM_FOV_RADIUS,500,right,function(v)
+criarSlider("FOV AIM",AIM_MIN_FOV,AIM_MAX_FOV,AIM_FOV_RADIUS,499,right,function(v)
 	AIM_FOV_RADIUS = v
 end)
 
