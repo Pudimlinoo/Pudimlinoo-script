@@ -36,6 +36,31 @@ frame.BackgroundTransparency = 0.15
 frame.BorderSizePixel = 0
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0,16)
 
+-- ================= ANIMAÇÃO DE ABERTURA =================
+local TweenService = game:GetService("TweenService")
+
+-- estado inicial (invisível)
+frame.Size = UDim2.new(0,0,0,0)
+frame.BackgroundTransparency = 1
+frame.Visible = true
+
+local OPEN_SIZE = UDim2.new(0,460,0,430)
+local OPEN_TRANSP = 0.15
+
+local openTween = TweenService:Create(
+	frame,
+	TweenInfo.new(
+		0.45, -- duração
+		Enum.EasingStyle.Back, -- efeito elástico
+		Enum.EasingDirection.Out
+	),
+	{
+		Size = OPEN_SIZE,
+		BackgroundTransparency = OPEN_TRANSP
+	}
+)
+
+openTween:Play()
 -- sombra
 local shadow = Instance.new("ImageLabel", frame)
 shadow.AnchorPoint = Vector2.new(0.5,0.5)
@@ -669,10 +694,75 @@ end
 Players.PlayerAdded:Connect(criarESP)
 
 
--- ================= TOGGLE MENU =================
-UserInputService.InputBegan:Connect(function(i,gp)
-	if not gp and i.KeyCode == Enum.KeyCode.G then
-		frame.Visible = not frame.Visible
+-- ================= TOGGLE MENU ANIMADO NO G =================
+local TweenService = game:GetService("TweenService")
+
+local menuOpen = true
+local busy = false
+
+local OPEN_SIZE = UDim2.new(0,460,0,430)
+local CLOSED_SIZE = UDim2.new(0,0,0,0)
+
+local OPEN_TRANSP = 0.15
+local CLOSED_TRANSP = 1
+
+-- estado inicial (já abre com animação)
+frame.Visible = true
+frame.Size = CLOSED_SIZE
+frame.BackgroundTransparency = 1
+
+local tweenOpen = TweenService:Create(
+	frame,
+	TweenInfo.new(
+		0.45,
+		Enum.EasingStyle.Quint,
+		Enum.EasingDirection.Out
+	),
+	{
+		Size = OPEN_SIZE,
+		BackgroundTransparency = OPEN_TRANSP
+	}
+)
+
+local tweenClose = TweenService:Create(
+	frame,
+	TweenInfo.new(
+		0.35,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.In
+	),
+	{
+		Size = CLOSED_SIZE,
+		BackgroundTransparency = CLOSED_TRANSP
+	}
+)
+
+-- animação inicial
+tweenOpen:Play()
+
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.KeyCode == Enum.KeyCode.G then
+		if busy then return end
+		busy = true
+
+		if menuOpen then
+			-- FECHAR
+			tweenClose:Play()
+			tweenClose.Completed:Wait()
+			frame.Visible = false
+			menuOpen = false
+		else
+			-- ABRIR
+			frame.Visible = true
+			frame.Size = CLOSED_SIZE
+			frame.BackgroundTransparency = 1
+			tweenOpen:Play()
+			menuOpen = true
+		end
+
+		task.wait(0.05)
+		busy = false
 	end
 end)
 
