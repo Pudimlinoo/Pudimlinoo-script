@@ -222,7 +222,7 @@ local espOnlyEnemies = false
 local espObjects = {}
 local boatTransparencyEnabled = false
 local BOAT_TRANSPARENCY = 0.6
-
+local ESPAtivo = false
 -- ================= PLAYER =================
 criarSecao("PLAYER",0,left)
 
@@ -252,11 +252,13 @@ end)
 -- ================= ESP =================
 criarSecao("ESP",300,left)
 
-criarBotaoToggle("SÓ INIMIGOS",330,left,function(v)
+criarBotaoToggle("MODO: SÓ INIMIGOS",330,left,function(v)
 	espOnlyEnemies = v
 end)
 
-
+criarBotaoToggle("ATIVAR ESP",370,left,function(v)
+	ESPAtivo = v
+end)
 -- ================= SISTEMA =================
 criarSecao("SISTEMA",0,right)
 
@@ -663,16 +665,42 @@ local function criarESP(plr)
 
 		espObjects[plr] = bill
 
-		RunService.RenderStepped:Connect(function()
-			if not char or hum.Health <= 0 then return end
+RunService.RenderStepped:Connect(function()
 
-			if espOnlyEnemies and plr.Team == player.Team then
-				bill.Enabled = false
-				return
-			end
+	if not ESPAtivo then
+		bill.Enabled = false
+		return
+	end
 
-			bill.Enabled = true
-			local dist = math.floor((getRoot().Position - root.Position).Magnitude)
+	if not char or hum.Health <= 0 then
+		bill.Enabled = false
+		return
+	end
+
+	local sameTeam = false
+
+	if player.Team and plr.Team then
+		sameTeam = player.Team == plr.Team
+	elseif player.TeamColor and plr.TeamColor then
+		sameTeam = player.TeamColor == plr.TeamColor
+	end
+
+	-- modo só inimigos
+	if espOnlyEnemies and sameTeam then
+		bill.Enabled = false
+		return
+	end
+
+	bill.Enabled = true
+
+	-- cores por time
+	if sameTeam then
+		txt.TextColor3 = Color3.fromRGB(0,170,255) -- seu time
+	else
+		txt.TextColor3 = Color3.fromRGB(255,70,70) -- inimigo
+	end
+
+	local dist = math.floor((getRoot().Position - root.Position).Magnitude)
 			local level = plr:FindFirstChild("Data")
 				and plr.Data:FindFirstChild("Level")
 				and plr.Data.Level.Value or "?"
