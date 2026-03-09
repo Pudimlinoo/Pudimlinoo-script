@@ -62,8 +62,7 @@ frame.Size = UDim2.new(0,0,0,0)
 frame.BackgroundTransparency = 1
 frame.Visible = true
 
-local OPEN_SIZE = UDim2.new(0,460,0,480)
-local OPEN_TRANSP = 0.15
+
 
 local openTween = TweenService:Create(
 	frame,
@@ -124,22 +123,78 @@ title.InputEnded:Connect(function(i)
 		dragging = false
 	end
 end)
+-- ================= SIDEBAR =================
 
--- ================= COLUNAS =================
-local left = Instance.new("Frame", frame)
-left.Size = UDim2.new(0.48,0,1,-45)
-left.Position = UDim2.new(0.02,0,0,40)
-left.BackgroundTransparency = 1
+local sidebar = Instance.new("Frame",frame)
+sidebar.Size = UDim2.new(0,120,1,-40)
+sidebar.Position = UDim2.new(0,0,0,40)
+sidebar.BackgroundColor3 = Theme.Second
+sidebar.BorderSizePixel = 0
 
--- 👉 Agora a direita vira SCROLLINGFRAME
-local right = Instance.new("ScrollingFrame", frame)
-right.Size = UDim2.new(0.48,0,1,-45)
-right.Position = UDim2.new(0.5,0,0,40)
-right.BackgroundTransparency = 1
-right.CanvasSize = UDim2.new(0,0,0,580) -- 👈 altura total do conteúdo
-right.ScrollBarImageColor3 = Theme.Red
-right.ScrollBarThickness = 5
-right.AutomaticCanvasSize = Enum.AutomaticSize.None
+Instance.new("UICorner",sidebar)
+
+-- ================= CONTAINER =================
+
+local container = Instance.new("Frame",frame)
+container.Size = UDim2.new(1,-130,1,-45)
+container.Position = UDim2.new(0,125,0,40)
+container.BackgroundTransparency = 1
+
+local tabs = {}
+local currentTab
+
+local function createTab(name)
+
+	local btn = Instance.new("TextButton",sidebar)
+	btn.Size = UDim2.new(1,-10,0,36)
+	btn.Position = UDim2.new(0,5,0,#tabs*40+10)
+	btn.BackgroundColor3 = Theme.Button
+	btn.Text = name
+	btn.Font = Enum.Font.GothamBold
+	btn.TextColor3 = Theme.Text
+	btn.TextSize = 16
+
+	Instance.new("UICorner",btn)
+
+	local page = Instance.new("ScrollingFrame",container)
+	page.Size = UDim2.new(1,0,1,0)
+	page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	page.ScrollBarThickness = 4
+	page.ScrollBarImageColor3 = Theme.Red
+	page.BackgroundTransparency = 1
+	page.Visible = false
+	local layout = Instance.new("UIListLayout")
+	layout.Padding = UDim.new(0,8)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = page
+	btn.MouseButton1Click:Connect(function()
+
+		for _,v in pairs(container:GetChildren()) do
+			if v:IsA("ScrollingFrame") then
+				v.Visible = false
+			end
+		end
+
+		page.Visible = true
+		currentTab = page
+
+	end)
+
+	table.insert(tabs,page)
+
+	if not currentTab then
+		page.Visible = true
+		currentTab = page
+	end
+
+	return page
+end
+
+local tabPlayer = createTab("PLAYER")
+local tabESP = createTab("ESP")
+local tabTeleport = createTab("TELEPORT")
+local tabAimbot = createTab("AIMBOT")
+local tabSistema = createTab("SISTEMA")
 
 -- ================= UI HELPERS =================
 local function criarSecao(txt,y,p)
@@ -159,36 +214,67 @@ local function criarSecao(txt,y,p)
 end
 
 local function criarBotaoToggle(txt,y,p,cb)
-	local b = Instance.new("TextButton",p)
-	b.Position = UDim2.new(0,10,0,y)
-	b.Size = UDim2.new(1,-20,0,32)
 
-	-- VISUAL NOVO
-	b.BackgroundColor3 = Theme.Button
-	b.BackgroundTransparency = 0
-	b.Text = txt..": OFF"
-	b.TextColor3 = Theme.Text
-	b.Font = Enum.Font.GothamBold
-	b.TextSize = 18
-	Instance.new("UICorner",b)
+	local frame = Instance.new("Frame",p)
+	frame.Position = UDim2.new(0,10,0,y)
+	frame.Size = UDim2.new(1,-20,0,32)
+	frame.BackgroundTransparency = 1
 
-	-- HOVER (passar o mouse)
-	b.MouseEnter:Connect(function()
-		b.BackgroundTransparency = 0
-	end)
+	local label = Instance.new("TextLabel",frame)
+	label.Size = UDim2.new(0.7,0,1,0)
+	label.BackgroundTransparency = 1
+	label.Text = txt
+	label.Font = Enum.Font.GothamBold
+	label.TextColor3 = Theme.Text
+	label.TextSize = 16
+	label.TextXAlignment = Enum.TextXAlignment.Left
 
-	b.MouseLeave:Connect(function()
-		b.BackgroundTransparency = 0.2
-	end)
+	local toggle = Instance.new("Frame",frame)
+	toggle.Size = UDim2.new(0,46,0,22)
+	toggle.Position = UDim2.new(1,-46,0.5,-11)
+	toggle.BackgroundColor3 = Theme.Button
 
-	-- LÓGICA ORIGINAL (SEM MUDAR)
+	Instance.new("UICorner",toggle)
+
+	local circle = Instance.new("Frame",toggle)
+	circle.Size = UDim2.new(0,18,0,18)
+	circle.Position = UDim2.new(0,2,0.5,-9)
+	circle.BackgroundColor3 = Color3.new(1,1,1)
+
+	Instance.new("UICorner",circle)
+
 	local state = false
-	b.MouseButton1Click:Connect(function()
+
+	toggle.InputBegan:Connect(function(i)
+
+		if i.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+
 		state = not state
-		b.Text = txt..": "..(state and "ON" or "OFF")
-		b.BackgroundColor3 = state and Theme.Red or Theme.Button
+
+		if state then
+
+			toggle.BackgroundColor3 = Theme.Red
+
+			TweenService:Create(circle,
+				TweenInfo.new(0.2),
+				{Position = UDim2.new(1,-20,0.5,-9)}
+			):Play()
+
+		else
+
+			toggle.BackgroundColor3 = Theme.Button
+
+			TweenService:Create(circle,
+				TweenInfo.new(0.2),
+				{Position = UDim2.new(0,2,0.5,-9)}
+			):Play()
+
+		end
+
 		cb(state)
+
 	end)
+
 end
 
 local function criarSlider(txt,min,max,init,y,p,cb)
@@ -245,13 +331,13 @@ local boatTransparencyEnabled = false
 local BOAT_TRANSPARENCY = 0.6
 local ESPAtivo = false
 -- ================= PLAYER =================
-criarSecao("PLAYER",0,left)
+criarSecao("PLAYER",0,tabPlayer)
 
-criarBotaoToggle("NOCLIP",30,left,function(v)
+criarBotaoToggle("NOCLIP",30,tabPlayer,function(v)
 	noclip = v
 end)
 
-criarBotaoToggle("CHÃO INFINITO",70,left,function(v)
+criarBotaoToggle("CHÃO INFINITO",70,tabPlayer,function(v)
 	floorEnabled = v
 	if not v and floor then
 		floor:Destroy()
@@ -260,30 +346,30 @@ criarBotaoToggle("CHÃO INFINITO",70,left,function(v)
 end)
 
 -- ================= MOVIMENTO =================
-criarSecao("MOVIMENTO",120,left)
+criarSecao("MOVIMENTO",120,tabPlayer)
 
-criarSlider("Pulo",25,500,50,150,left,function(v)
+criarSlider("Pulo",25,500,50,150,tabPlayer,function(v)
 	getHumanoid().JumpPower = v
 end)
 
-criarSlider("Velocidade TP",0,10,0,220,left,function(v)
+criarSlider("Velocidade TP",0,10,0,220,tabPlayer,function(v)
 	tpSpeed = v
 end)
 
 -- ================= ESP =================
-criarSecao("ESP",300,left)
+criarSecao("ESP",0,tabESP)
+criarBotaoToggle("ESP JOGADORES",30,tabESP,function(v)
+	ESPAtivo = v
+end)
 
-criarBotaoToggle("MODO: SÓ INIMIGOS",330,left,function(v)
+criarBotaoToggle("SÓ INIMIGOS",70,tabESP,function(v)
 	espOnlyEnemies = v
 end)
 
-criarBotaoToggle("ATIVAR ESP",370,left,function(v)
-	ESPAtivo = v
-end)
 -- ================= SISTEMA =================
-criarSecao("SISTEMA",0,right)
+criarSecao("SISTEMA",0,tabSistema)
 
-local rejoin = Instance.new("TextButton",right)
+local rejoin = Instance.new("TextButton",tabSistema)
 rejoin.Position = UDim2.new(0,10,0,30)
 rejoin.Size = UDim2.new(1,-20,0,32)
 rejoin.BackgroundColor3 = Theme.Red
@@ -305,7 +391,7 @@ rejoin.MouseButton1Click:Connect(function()
 end)
 
 -- ================= TIME =================
-criarSecao("TIME (BLOX FRUITS)",80,right)
+criarSecao("TIME (BLOX FRUITS)",80,tabSistema)
 
 local function setTeam(team)
 	pcall(function()
@@ -313,7 +399,7 @@ local function setTeam(team)
 	end)
 end
 
-local marine = Instance.new("TextButton",right)
+local marine = Instance.new("TextButton",tabSistema)
 marine.Position = UDim2.new(0,10,0,110)
 marine.Size = UDim2.new(1,-20,0,32)
 marine.BackgroundColor3 = Color3.fromRGB(0,90,160)
@@ -326,7 +412,7 @@ marine.MouseButton1Click:Connect(function()
 	setTeam("Marines")
 end)
 
-local pirate = Instance.new("TextButton",right)
+local pirate = Instance.new("TextButton",tabSistema)
 pirate.Position = UDim2.new(0,10,0,150)
 pirate.Size = UDim2.new(1,-20,0,32)
 pirate.BackgroundColor3 = Color3.fromRGB(160,40,40)
@@ -339,9 +425,9 @@ pirate.MouseButton1Click:Connect(function()
 	setTeam("Pirates")
 end)
 -- ================= TELEPORT =================
-criarSecao("TELEPORT",190,right)
+criarSecao("TELEPORT",190,tabTeleport)
 
-local TweenService = game:GetService("TweenService")
+
 local currentTween = nil
 
 local function TweenTeleport(cf)
@@ -388,7 +474,7 @@ local TeleportIslands = {
 local islandIndex = 1
 
 -- ================= SELETOR DE ILHA COM SETAS =================
-local islandFrame = Instance.new("Frame", right)
+local islandFrame = Instance.new("Frame", tabTeleport)
 islandFrame.Position = UDim2.new(0,10,0,220)
 islandFrame.Size = UDim2.new(1,-20,0,32)
 islandFrame.BackgroundColor3 = Color3.fromRGB(35,35,35)
@@ -448,7 +534,7 @@ nextBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================= BOTÃO TELEPORTAR =================
-local teleportBtn = Instance.new("TextButton", right)
+local teleportBtn = Instance.new("TextButton", tabTeleport)
 teleportBtn.Position = UDim2.new(0,10,0,260)
 teleportBtn.Size = UDim2.new(1,-20,0,36)
 teleportBtn.BackgroundColor3 = Theme.Red
@@ -463,7 +549,7 @@ teleportBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ================= BOTÃO CANCELAR =================
-local cancelBtn = Instance.new("TextButton", right)
+local cancelBtn = Instance.new("TextButton", tabTeleport)
 cancelBtn.Position = UDim2.new(0,10,0,302)
 cancelBtn.Size = UDim2.new(1,-20,0,32)
 cancelBtn.BackgroundColor3 = Color3.fromRGB(140,40,40)
@@ -477,7 +563,7 @@ cancelBtn.MouseButton1Click:Connect(function()
 	CancelTeleport()
 end)
 -- ================= AIMBOT (DEPOIS DO TELEPORT) =================
-criarSecao("AIMBOT",370,right)
+criarSecao("AIMBOT",0,tabAimbot)
 
 local AIM_MAX_DISTANCE = 500
 local AIM_MIN_FOV = 50
@@ -598,13 +684,12 @@ UserInputService.InputBegan:Connect(function(i, gp)
 	end
 end)
 
-criarBotaoToggle("SÓ INIMIGOS",405,right,function(v)
-
+criarBotaoToggle("SÓ INIMIGOS",40,tabAimbot,function(v)
 	aimMode = v and "ENEMIES" or "ALL"
 	lockedPart = nil
 end)
 
-criarBotaoToggle("MIRA: CABEÇA",450,right,function(v)
+criarBotaoToggle("MIRA: CABEÇA",80,tabAimbot,function(v)
 	if v then
 		aimPartMode = "HEAD"
 	else
@@ -613,10 +698,9 @@ criarBotaoToggle("MIRA: CABEÇA",450,right,function(v)
 	lockedPart = nil
 end)
 
-criarSlider("FOV AIM",AIM_MIN_FOV,AIM_MAX_FOV,AIM_FOV_RADIUS,499,right,function(v)
+criarSlider("FOV AIM",AIM_MIN_FOV,AIM_MAX_FOV,AIM_FOV_RADIUS,120,tabAimbot,function(v)
 	AIM_FOV_RADIUS = v
 end)
-
 -- FOV Circle (visual)
 local fovCircle = Drawing.new("Circle")
 fovCircle.Thickness = 2
@@ -744,7 +828,7 @@ Players.PlayerAdded:Connect(criarESP)
 
 
 -- ================= TOGGLE MENU ANIMADO NO G =================
-local TweenService = game:GetService("TweenService")
+
 
 local menuOpen = true
 local busy = false
