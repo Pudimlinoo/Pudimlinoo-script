@@ -10,6 +10,20 @@ local player = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local CommF = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
 
+-- ================= TEMA REDZ =================
+local Theme = {
+
+	Main = Color3.fromRGB(18,18,18),       -- fundo principal
+	Second = Color3.fromRGB(25,25,25),     -- fundo interno
+	Button = Color3.fromRGB(35,35,35),     -- botão neutro
+	
+	Red = Color3.fromRGB(200,40,40),       -- vermelho principal
+	DarkRed = Color3.fromRGB(140,25,25),   -- vermelho escuro
+	
+	Text = Color3.fromRGB(240,240,240),
+	Stroke = Color3.fromRGB(60,60,60)
+
+}
 -- ================= FUNÇÕES PLAYER =================
 local function getChar()
 	return player.Character or player.CharacterAdded:Wait()
@@ -31,10 +45,14 @@ gui.ResetOnSpawn = false
 local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.new(0,460,0,430)
 frame.Position = UDim2.new(0.03,0,0.35,0)
-frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
-frame.BackgroundTransparency = 0.15
+frame.BackgroundColor3 = Theme.Main
+frame.BackgroundTransparency = 0.05
 frame.BorderSizePixel = 0
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0,16)
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
+
+local stroke = Instance.new("UIStroke",frame)
+stroke.Color = Theme.Red
+stroke.Thickness = 1.5
 
 -- ================= ANIMAÇÃO DE ABERTURA =================
 local TweenService = game:GetService("TweenService")
@@ -44,7 +62,7 @@ frame.Size = UDim2.new(0,0,0,0)
 frame.BackgroundTransparency = 1
 frame.Visible = true
 
-local OPEN_SIZE = UDim2.new(0,460,0,430)
+local OPEN_SIZE = UDim2.new(0,460,0,480)
 local OPEN_TRANSP = 0.15
 
 local openTween = TweenService:Create(
@@ -73,10 +91,10 @@ shadow.ZIndex = 0
 
 local title = Instance.new("TextLabel", frame)
 title.Size = UDim2.new(1,0,0,38)
-title.BackgroundColor3 = Color3.fromRGB(18,18,18)
-title.BackgroundTransparency = 0.2
-title.Text = "🍮|PudimLinoo Script"
-title.TextColor3 = Color3.fromRGB(235,235,235)
+title.BackgroundColor3 = Theme.DarkRed
+title.BackgroundTransparency = 0
+title.Text = "🍮 PudimLinoo Hub"
+title.TextColor3 = Theme.Text
 title.Font = Enum.Font.GothamBold
 title.TextSize = 20
 Instance.new("UICorner", title).CornerRadius = UDim.new(0,16)
@@ -119,22 +137,25 @@ right.Size = UDim2.new(0.48,0,1,-45)
 right.Position = UDim2.new(0.5,0,0,40)
 right.BackgroundTransparency = 1
 right.CanvasSize = UDim2.new(0,0,0,650) -- 👈 altura total do conteúdo
-right.ScrollBarImageTransparency = 0.2
-right.ScrollBarThickness = 6
+right.ScrollBarImageColor3 = Theme.Red
+right.ScrollBarThickness = 5
 right.AutomaticCanvasSize = Enum.AutomaticSize.None
 
 -- ================= UI HELPERS =================
 local function criarSecao(txt,y,p)
+
 	local l = Instance.new("TextLabel",p)
 	l.Size = UDim2.new(1,-10,0,24)
 	l.Position = UDim2.new(0,5,0,y)
-	l.BackgroundColor3 = Color3.fromRGB(25,25,25)
+
+	l.BackgroundTransparency = 1
 	l.Text = txt
-	l.TextColor3 = Color3.new(1,1,1)
+
+	l.TextColor3 = Theme.Red
 	l.Font = Enum.Font.GothamBold
-	l.BackgroundTransparency = 0.25
-	l.TextScaled = true
-	Instance.new("UICorner",l)
+	l.TextSize = 18
+	l.TextXAlignment = Enum.TextXAlignment.Left
+
 end
 
 local function criarBotaoToggle(txt,y,p,cb)
@@ -143,10 +164,10 @@ local function criarBotaoToggle(txt,y,p,cb)
 	b.Size = UDim2.new(1,-20,0,32)
 
 	-- VISUAL NOVO
-	b.BackgroundColor3 = Color3.fromRGB(140,40,40)
-	b.BackgroundTransparency = 0.2
+	b.BackgroundColor3 = Theme.Button
+	b.BackgroundTransparency = 0
 	b.Text = txt..": OFF"
-	b.TextColor3 = Color3.new(1,1,1)
+	b.TextColor3 = Theme.Text
 	b.Font = Enum.Font.GothamBold
 	b.TextSize = 18
 	Instance.new("UICorner",b)
@@ -165,7 +186,7 @@ local function criarBotaoToggle(txt,y,p,cb)
 	b.MouseButton1Click:Connect(function()
 		state = not state
 		b.Text = txt..": "..(state and "ON" or "OFF")
-		b.BackgroundColor3 = state and Color3.fromRGB(0,140,0) or Color3.fromRGB(140,40,40)
+		b.BackgroundColor3 = state and Theme.Red or Theme.Button
 		cb(state)
 	end)
 end
@@ -183,12 +204,12 @@ local function criarSlider(txt,min,max,init,y,p,cb)
 	local bar = Instance.new("Frame",p)
 	bar.Position = UDim2.new(0,10,0,y+24)
 	bar.Size = UDim2.new(1,-20,0,10)
-	bar.BackgroundColor3 = Color3.fromRGB(60,60,60)
+	bar.BackgroundColor3 = Theme.Second
 	Instance.new("UICorner",bar)
 
 	local fill = Instance.new("Frame",bar)
 	fill.Size = UDim2.new((init-min)/(max-min),0,1,0)
-	fill.BackgroundColor3 = Color3.fromRGB(0,170,255)
+	fill.BackgroundColor3 = Theme.Red
 	Instance.new("UICorner",fill)
 
 	cb(init)
@@ -265,7 +286,7 @@ criarSecao("SISTEMA",0,right)
 local rejoin = Instance.new("TextButton",right)
 rejoin.Position = UDim2.new(0,10,0,30)
 rejoin.Size = UDim2.new(1,-20,0,32)
-rejoin.BackgroundColor3 = Color3.fromRGB(0,90,160)
+rejoin.BackgroundColor3 = Theme.Red
 rejoin.Text="REJOIN"
 rejoin.TextColor3=Color3.new(1,1,1)
 rejoin.Font=Enum.Font.SourceSansBold
@@ -430,7 +451,7 @@ end)
 local teleportBtn = Instance.new("TextButton", right)
 teleportBtn.Position = UDim2.new(0,10,0,260)
 teleportBtn.Size = UDim2.new(1,-20,0,36)
-teleportBtn.BackgroundColor3 = Color3.fromRGB(0,120,180)
+teleportBtn.BackgroundColor3 = Theme.Red
 teleportBtn.Text = "TELEPORTAR"
 teleportBtn.TextColor3 = Color3.new(1,1,1)
 teleportBtn.Font = Enum.Font.SourceSansBold
@@ -601,7 +622,7 @@ local fovCircle = Drawing.new("Circle")
 fovCircle.Thickness = 2
 fovCircle.NumSides = 80
 fovCircle.Filled = false
-fovCircle.Color = Color3.fromRGB(0,170,255)
+fovCircle.Color = Theme.Red
 
 RunService.RenderStepped:Connect(function()
 	fovCircle.Visible = aimbotEnabled
@@ -728,7 +749,7 @@ local TweenService = game:GetService("TweenService")
 local menuOpen = true
 local busy = false
 
-local OPEN_SIZE = UDim2.new(0,460,0,430)
+local OPEN_SIZE = UDim2.new(0,460,0,460)
 local CLOSED_SIZE = UDim2.new(0,0,0,0)
 
 local OPEN_TRANSP = 0.15
@@ -819,27 +840,6 @@ Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-
-local function aplicarZoom()
-	player.CameraMinZoomDistance = 0.5
-	player.CameraMaxZoomDistance = 1000
-	Camera.CameraType = Enum.CameraType.Custom
-
-	local char = player.Character
-	if char then
-		local hum = char:FindFirstChildOfClass("Humanoid")
-		if hum then
-			hum.CameraOffset = Vector3.new(0, 0, 0)
-		end
-	end
-end
-
-aplicarZoom()
-
-player.CharacterAdded:Connect(function()
-	task.wait(1)
-	aplicarZoom()
-end)
 
 -- ================= FLY TELEPORT =================
 local Players = game:GetService("Players")
