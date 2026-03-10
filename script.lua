@@ -10,6 +10,7 @@ local player = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local CommF = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
 
+
 -- ================= TEMA REDZ =================
 local Theme = {
 
@@ -873,6 +874,21 @@ RunService.RenderStepped:Connect(function()
 			fruitName..
 			"\n📏 "..dist.."m"..
 			"\n💎 "..rarity
+
+	end
+
+end)
+
+task.spawn(function()
+
+	while true do
+		task.wait(3)
+
+		for _,v in pairs(workspace:GetDescendants()) do
+			if v:IsA("Tool") and v.Name:find("Fruit") then
+				createFruitESP(v)
+			end
+		end
 
 	end
 
