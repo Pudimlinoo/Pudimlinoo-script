@@ -330,6 +330,99 @@ local espObjects = {}
 local boatTransparencyEnabled = false
 local BOAT_TRANSPARENCY = 0.6
 local ESPAtivo = false
+-- ESP FRUTAS
+local fruitESPEnabled = false
+local fruitEspObjects = {}
+-- ================= ESP FRUTAS =================
+
+local FruitRarity = {
+
+	["Rocket"] = "Common",
+	["Spin"] = "Common",
+	["Chop"] = "Common",
+	["Spring"] = "Common",
+	["Bomb"] = "Common",
+	["Smoke"] = "Common",
+	["Spike"] = "Common",
+
+	["Flame"] = "Uncommon",
+	["Falcon"] = "Uncommon",
+	["Ice"] = "Uncommon",
+	["Sand"] = "Uncommon",
+	["Dark"] = "Uncommon",
+	["Diamond"] = "Uncommon",
+
+	["Light"] = "Rare",
+	["Rubber"] = "Rare",
+	["Barrier"] = "Rare",
+	["Ghost"] = "Rare",
+	["Magma"] = "Rare",
+
+	["Quake"] = "Legendary",
+	["Buddha"] = "Legendary",
+	["Love"] = "Legendary",
+	["Spider"] = "Legendary",
+	["Sound"] = "Legendary",
+	["Phoenix"] = "Legendary",
+	["Portal"] = "Legendary",
+	["Rumble"] = "Legendary",
+	["Pain"] = "Legendary",
+	["Blizzard"] = "Legendary",
+
+	["Gravity"] = "Mythical",
+	["Dough"] = "Mythical",
+	["Shadow"] = "Mythical",
+	["Venom"] = "Mythical",
+	["Control"] = "Mythical",
+	["Spirit"] = "Mythical",
+	["Dragon"] = "Mythical",
+	["Leopard"] = "Mythical",
+	["Kitsune"] = "Mythical"
+
+}
+
+local RarityColors = {
+
+	Common = Color3.fromRGB(180,180,180),
+	Uncommon = Color3.fromRGB(80,255,80),
+	Rare = Color3.fromRGB(80,150,255),
+	Legendary = Color3.fromRGB(255,170,0),
+	Mythical = Color3.fromRGB(255,70,70)
+
+}
+
+local function createFruitESP(tool)
+
+	if fruitEspObjects[tool] then return end
+
+	local part = tool:FindFirstChildWhichIsA("BasePart")
+	if not part then return end
+
+	local bill = Instance.new("BillboardGui")
+	bill.Size = UDim2.new(0,200,0,60)
+	bill.AlwaysOnTop = true
+	bill.Adornee = part
+	bill.Parent = part
+
+	local txt = Instance.new("TextLabel")
+	txt.Size = UDim2.new(1,0,1,0)
+	txt.BackgroundTransparency = 1
+	txt.Font = Enum.Font.GothamBold
+	txt.TextScaled = false
+	txt.TextSize = 14
+	txt.TextStrokeTransparency = 0
+	txt.Parent = bill
+	txt.TextStrokeTransparency = 0
+	txt.TextStrokeColor3 = Color3.new(0,0,0)
+	bill.Size = UDim2.new(0,120,0,40)	
+
+	fruitEspObjects[tool] = {
+		gui = bill,
+		label = txt,
+		part = part
+	}
+
+end
 -- ================= PLAYER =================
 criarSecao("PLAYER",0,tabPlayer)
 
@@ -364,6 +457,10 @@ end)
 
 criarBotaoToggle("SÓ INIMIGOS",70,tabESP,function(v)
 	espOnlyEnemies = v
+end)
+
+criarBotaoToggle("ESP FRUTAS",110,tabESP,function(v)
+	fruitESPEnabled = v
 end)
 
 -- ================= SISTEMA =================
@@ -744,6 +841,63 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
+RunService.RenderStepped:Connect(function()
+
+	if not fruitESPEnabled then
+		for _,v in pairs(fruitEspObjects) do
+			v.gui.Enabled = false
+		end
+		return
+	end
+
+	local root = getRoot()
+	if not root then return end
+
+	for tool,data in pairs(fruitEspObjects) do
+
+		if not tool.Parent then
+			data.gui.Enabled = false
+			continue
+		end
+
+		data.gui.Enabled = true
+
+		local fruitName = tool.Name:gsub(" Fruit","")
+		local rarity = FruitRarity[fruitName] or "Common"
+
+		data.label.TextColor3 = RarityColors[rarity]
+
+		local dist = math.floor((root.Position - data.part.Position).Magnitude)
+
+		data.label.Text =
+			fruitName..
+			"\n📏 "..dist.."m"..
+			"\n💎 "..rarity
+
+	end
+
+end)
+
+local function scanFruits()
+
+	for _,v in pairs(workspace:GetDescendants()) do
+		if v:IsA("Tool") and v.Name:find("Fruit") then
+			createFruitESP(v)
+		end
+	end
+
+end
+
+scanFruits()
+
+workspace.DescendantAdded:Connect(function(v)
+
+	if v:IsA("Tool") and v.Name:find("Fruit") then
+		task.wait(0.5)
+		createFruitESP(v)
+	end
+
+end)
 -- ================= ESP JOGADORES (INALTERADO NO VISUAL) =================
 local function criarESP(plr)
 	if plr == player then return end
@@ -766,7 +920,8 @@ local function criarESP(plr)
 		txt.TextColor3 = Color3.new(1,1,1)
 		txt.TextStrokeTransparency = 0
 		txt.Font = Enum.Font.SourceSansBold
-		txt.TextScaled = true
+		txt.TextScaled = false
+txt.TextSize = 14
 
 		espObjects[plr] = bill
 
