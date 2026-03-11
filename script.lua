@@ -571,79 +571,75 @@ local TeleportIslands = {
 
 local islandIndex = 1
 
--- ================= SELETOR DE ILHA COM SETAS =================
-local islandFrame = Instance.new("Frame", tabTeleport)
-islandFrame.Position = UDim2.new(0,10,0,220)
-islandFrame.Size = UDim2.new(1,-20,0,32)
-islandFrame.BackgroundColor3 = Color3.fromRGB(35,35,35)
-islandFrame.BackgroundTransparency = 0.25
-islandFrame.BorderSizePixel = 0
-Instance.new("UICorner", islandFrame)
+local dropdownOpen = false
 
--- BOTÃO <
-local prevBtn = Instance.new("TextButton", islandFrame)
-prevBtn.Size = UDim2.new(0,32,1,0)
-prevBtn.Position = UDim2.new(0,0,0,0)
-prevBtn.Text = "<"
-prevBtn.Font = Enum.Font.GothamBold
-prevBtn.TextSize = 22
-prevBtn.TextColor3 = Color3.new(1,1,1)
-prevBtn.BackgroundTransparency = 1
+local dropdownBtn = Instance.new("TextButton", tabTeleport)
+dropdownBtn.Position = UDim2.new(0,10,0,220)
+dropdownBtn.Size = UDim2.new(1,-20,0,36)
+dropdownBtn.BackgroundColor3 = Theme.Button
+dropdownBtn.Text = "ESCOLHER ILHA ▼"
+dropdownBtn.TextColor3 = Theme.Text
+dropdownBtn.Font = Enum.Font.GothamBold
+dropdownBtn.TextSize = 16
+Instance.new("UICorner", dropdownBtn)
 
--- TEXTO ILHA
-local islandLabel = Instance.new("TextLabel", islandFrame)
-islandLabel.Size = UDim2.new(1,-64,1,0)
-islandLabel.Position = UDim2.new(0,32,0,0)
-islandLabel.BackgroundTransparency = 1
-islandLabel.TextColor3 = Color3.new(1,1,1)
-islandLabel.Font = Enum.Font.GothamBold
-islandLabel.TextSize = 16
-islandLabel.Text = "ILHA: "..TeleportIslands[islandIndex].nome
+local dropdownFrame = Instance.new("Frame", tabTeleport)
+dropdownFrame.Position = UDim2.new(0,10,0,260)
+dropdownFrame.Size = UDim2.new(1,-20,0,0)
+dropdownFrame.BackgroundTransparency = 1
+dropdownFrame.ClipsDescendants = true
 
--- BOTÃO >
-local nextBtn = Instance.new("TextButton", islandFrame)
-nextBtn.Size = UDim2.new(0,32,1,0)
-nextBtn.Position = UDim2.new(1,-32,0,0)
-nextBtn.Text = ">"
-nextBtn.Font = Enum.Font.GothamBold
-nextBtn.TextSize = 22
-nextBtn.TextColor3 = Color3.new(1,1,1)
-nextBtn.BackgroundTransparency = 1
+local function createTPButton(name, cf, index)
 
--- FUNÇÕES
-local function atualizarIlha()
-	islandLabel.Text = "ILHA: "..TeleportIslands[islandIndex].nome
+	local btn = Instance.new("TextButton", dropdownFrame)
+	btn.Size = UDim2.new(1,0,0,32)
+	btn.Position = UDim2.new(0,0,0,(index-1)*34)
+	btn.BackgroundColor3 = Theme.Button
+	btn.Text = name
+	btn.TextColor3 = Theme.Text
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 15
+
+	Instance.new("UICorner",btn)
+
+	btn.MouseButton1Click:Connect(function()
+		TweenTeleport(cf)
+	end)
+
 end
 
-prevBtn.MouseButton1Click:Connect(function()
-	islandIndex -= 1
-	if islandIndex < 1 then
-		islandIndex = #TeleportIslands
+for i,island in pairs(TeleportIslands) do
+	createTPButton(island.nome,island.cf,i)
+end
+
+dropdownBtn.MouseButton1Click:Connect(function()
+
+	dropdownOpen = not dropdownOpen
+
+	if dropdownOpen then
+
+		local size = #TeleportIslands * 34
+
+		TweenService:Create(
+			dropdownFrame,
+			TweenInfo.new(0.25),
+			{Size = UDim2.new(1,-20,0,size)}
+		):Play()
+
+		dropdownBtn.Text = "ESCOLHER ILHA ▲"
+
+	else
+
+		TweenService:Create(
+			dropdownFrame,
+			TweenInfo.new(0.25),
+			{Size = UDim2.new(1,-20,0,0)}
+		):Play()
+
+		dropdownBtn.Text = "ESCOLHER ILHA ▼"
+
 	end
-	atualizarIlha()
-end)
 
-nextBtn.MouseButton1Click:Connect(function()
-	islandIndex += 1
-	if islandIndex > #TeleportIslands then
-		islandIndex = 1
-	end
-	atualizarIlha()
-end)
-
--- ================= BOTÃO TELEPORTAR =================
-local teleportBtn = Instance.new("TextButton", tabTeleport)
-teleportBtn.Position = UDim2.new(0,10,0,260)
-teleportBtn.Size = UDim2.new(1,-20,0,36)
-teleportBtn.BackgroundColor3 = Theme.Red
-teleportBtn.Text = "TELEPORTAR"
-teleportBtn.TextColor3 = Color3.new(1,1,1)
-teleportBtn.Font = Enum.Font.SourceSansBold
-teleportBtn.TextSize = 18
-Instance.new("UICorner", teleportBtn)
-
-teleportBtn.MouseButton1Click:Connect(function()
-	TweenTeleport(TeleportIslands[islandIndex].cf)
 end)
 
 -- ================= BOTÃO CANCELAR =================
