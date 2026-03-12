@@ -1,4 +1,3 @@
-quero o bring mobs e o Fast Attack real
 -- ================= SERVIÇOS =================
 local VirtualUser = game:GetService("VirtualUser")
 local Players = game:GetService("Players")
