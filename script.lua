@@ -1309,7 +1309,6 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- ================= SEGURANÇA AO MORRER =================
 player.CharacterAdded:Connect(function(char)
 	task.wait(1)
 	local root = char:FindFirstChild("HumanoidRootPart")
