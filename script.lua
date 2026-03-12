@@ -389,6 +389,7 @@ local fastAttackSpeed = 0.02
 -- NOVAS FUNÇÕES
 local bringNPCs = false
 local fastAttackEnabled = false
+local lastBring = 0
 
 -- ================= AUTO FARM MENU =================
 criarSecao("AUTO FARM NPC",0,tabFarm)
@@ -889,31 +890,59 @@ end)
 
 local function bringEnemies()
 
+	local root = getRoot()
+	if not root then return end
+
 	local enemiesFolder = workspace:FindFirstChild("Enemies")
 	if not enemiesFolder then return end
+
+	local radius = 6
+	local maxDistance = 80
+	local count = 0
 
 	for _,enemy in pairs(enemiesFolder:GetChildren()) do
 
 		local hum = enemy:FindFirstChild("Humanoid")
-		local root = enemy:FindFirstChild("HumanoidRootPart")
+		local enemyRoot = enemy:FindFirstChild("HumanoidRootPart")
 
-		if hum and root and hum.Health > 0 then
+		if hum and enemyRoot and hum.Health > 0 then
 
-			root.Size = Vector3.new(60,60,60)
-			root.Transparency = 1
-			root.CanCollide = false
+			local dist = (enemyRoot.Position - root.Position).Magnitude
+
+			if dist <= maxDistance then
+
+				count += 1
+				local angle = math.rad(count * 35)
+
+				local offset = Vector3.new(
+					math.cos(angle) * radius,
+					0,
+					math.sin(angle) * radius
+				)
+
+				enemy:PivotTo(root.CFrame + offset)
+
+				enemyRoot.CanCollide = false
+
+			end
 
 		end
 
 	end
 
 end
-
 -- ================= LOOP =================
 RunService.RenderStepped:Connect(function()
 	local char = getChar()
 	local hum = getHumanoid()
 	local root = getRoot()
+
+if bringNPCs then
+	if not lastBring or tick() - lastBring > 0.25 then
+		lastBring = tick()
+		bringEnemies()
+	end
+end
 
 -- ================= AUTO FARM =================
 
@@ -932,8 +961,11 @@ if autoFarmEnabled then
 if npcRoot and hum and hum.Health > 0 then
 
 	if bringNPCs then
-		bringEnemies()
+	if not lastBring or tick() - lastBring > 0.3 then
+		lastBring = tick()
+		
 	end
+end
 
 	root.CFrame = CFrame.new(
 	npcRoot.Position + Vector3.new(0,farmHeight,farmDistance),
