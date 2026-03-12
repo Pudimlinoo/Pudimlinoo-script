@@ -404,7 +404,13 @@ criarBotaoToggle("FAST ATTACK",70,tabFarm,function(v)
 end)
 
 criarBotaoToggle("BRING NPCs",110,tabFarm,function(v)
+
 	bringNPCs = v
+
+	if not v then
+		unfreezeEnemies()
+	end
+
 end)
 
 criarSlider("ALTURA FARM",5,30,farmHeight,150,tabFarm,function(v)
@@ -896,9 +902,10 @@ local function bringEnemies()
 	local enemiesFolder = workspace:FindFirstChild("Enemies")
 	if not enemiesFolder then return end
 
-	local radius = 6
 	local maxDistance = 80
-	local count = 0
+	local frontDistance = farmDistance
+	local stackHeight = 0
+	local heightStep = 0.4
 
 	for _,enemy in pairs(enemiesFolder:GetChildren()) do
 
@@ -911,18 +918,17 @@ local function bringEnemies()
 
 			if dist <= maxDistance then
 
-				count += 1
-				local angle = math.rad(count * 35)
+				local frontPos =
+					root.Position
+					+ (root.CFrame.LookVector * frontDistance)
+					+ Vector3.new(0, stackHeight, 0)
 
-				local offset = Vector3.new(
-					math.cos(angle) * radius,
-					0,
-					math.sin(angle) * radius
-				)
+				enemyRoot.CFrame = CFrame.new(frontPos)
 
-				enemy:PivotTo(root.CFrame + offset)
-
+				enemyRoot.Anchored = true
 				enemyRoot.CanCollide = false
+
+				stackHeight += heightStep
 
 			end
 
@@ -931,6 +937,24 @@ local function bringEnemies()
 	end
 
 end
+
+local function unfreezeEnemies()
+
+	local enemiesFolder = workspace:FindFirstChild("Enemies")
+	if not enemiesFolder then return end
+
+	for _,enemy in pairs(enemiesFolder:GetChildren()) do
+
+		local root = enemy:FindFirstChild("HumanoidRootPart")
+
+		if root then
+			root.Anchored = false
+		end
+
+	end
+
+end
+
 -- ================= LOOP =================
 RunService.RenderStepped:Connect(function()
 	local char = getChar()
