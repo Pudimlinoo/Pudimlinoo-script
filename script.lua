@@ -1,4 +1,6 @@
+quero o bring mobs e o Fast Attack real
 -- ================= SERVIÇOS =================
+local VirtualUser = game:GetService("VirtualUser")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -36,6 +38,50 @@ end
 
 local function getRoot()
 	return getChar():WaitForChild("HumanoidRootPart")
+end
+
+
+local function fastAttack()
+
+	VirtualUser:CaptureController()
+
+	VirtualUser:Button1Down(Vector2.new(0,0),Camera.CFrame)
+	VirtualUser:Button1Up(Vector2.new(0,0),Camera.CFrame)
+
+end
+
+-- ================= BUSCAR NPC =================
+
+local function getClosestEnemy()
+
+-- ================= FAST ATTACK =================
+
+local VirtualUser = game:GetService("VirtualUser")
+
+	local closest
+	local dist = math.huge
+
+	local enemiesFolder = workspace:FindFirstChild("Enemies")
+if not enemiesFolder then return nil end
+
+for _,v in pairs(enemiesFolder:GetChildren()) do
+
+		local hum = v:FindFirstChild("Humanoid")
+		local root = v:FindFirstChild("HumanoidRootPart")
+
+		if hum and root and hum.Health > 0 then
+
+			local d = (getRoot().Position - root.Position).Magnitude
+
+			if d < dist then
+				dist = d
+				closest = v
+			end
+
+		end
+	end
+
+	return closest
 end
 
 -- ================= GUI =================
@@ -192,10 +238,12 @@ local function createTab(name)
 end
 
 local tabPlayer = createTab("PLAYER")
+local tabFarm = createTab("Auto-Farm")
 local tabESP = createTab("ESP")
 local tabTeleport = createTab("TELEPORT")
 local tabAimbot = createTab("AIMBOT")
 local tabSistema = createTab("SISTEMA")
+
 
 -- ================= UI HELPERS =================
 local function criarSecao(txt,y,p)
@@ -334,6 +382,33 @@ local ESPAtivo = false
 -- ESP FRUTAS
 local fruitESPEnabled = false
 local fruitEspObjects = {}
+
+-- ================= AUTO FARM VARIÁVEIS =================
+
+local autoFarmEnabled = false
+local farmHeight = 15
+local farmDistance = 4
+local farmTarget = nil
+local attacking = false
+local fastAttackSpeed = 0.02
+
+-- ================= AUTO FARM MENU =================
+
+criarSecao("AUTO FARM NPC",0,tabFarm)
+
+criarBotaoToggle("ATIVAR AUTO FARM",30,tabFarm,function(v)
+	autoFarmEnabled = v
+	farmTarget = nil
+end)
+
+criarSlider("ALTURA FARM",5,30,farmHeight,70,tabFarm,function(v)
+	farmHeight = v
+end)
+
+criarSlider("DISTÂNCIA NPC",2,10,farmDistance,120,tabFarm,function(v)
+	farmDistance = v
+end)
+
 -- ================= ESP FRUTAS =================
 
 local FruitRarity = {
@@ -814,6 +889,57 @@ RunService.RenderStepped:Connect(function()
 	local hum = getHumanoid()
 	local root = getRoot()
 
+-- ================= AUTO FARM =================
+
+if autoFarmEnabled then
+
+	if not farmTarget or not farmTarget.Parent then
+		farmTarget = getClosestEnemy()
+	end
+
+	if farmTarget then
+
+		local root = getRoot()
+		local npcRoot = farmTarget:FindFirstChild("HumanoidRootPart")
+		local hum = farmTarget:FindFirstChild("Humanoid")
+
+		if npcRoot and hum and hum.Health > 0 then
+
+			root.CFrame = npcRoot.CFrame * CFrame.new(0,farmHeight,farmDistance)
+
+			if not attacking then
+				attacking = true
+
+				task.spawn(function()
+
+while autoFarmEnabled and hum.Health > 0 do
+
+	pcall(function()
+		CommF:InvokeServer("Melee")
+	end)
+
+	fastAttack()
+	fastAttack()
+	fastAttack()
+
+	task.wait(fastAttackSpeed)
+
+end
+
+					attacking = false
+
+				end)
+
+			end
+
+		else
+			farmTarget = nil
+		end
+
+	end
+
+end
+
 	if tpSpeed > 0 and hum.MoveDirection.Magnitude > 0 then
 		root.CFrame += hum.MoveDirection * tpSpeed
 	end
@@ -1067,7 +1193,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 -- ================= TIRAR FOG =================
-
 
 local Lighting = game:GetService("Lighting")
 
