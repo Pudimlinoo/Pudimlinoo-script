@@ -40,13 +40,8 @@ local function getRoot()
 end
 
 
-local function fastAttack()
-
-	VirtualUser:CaptureController()
-
-	VirtualUser:Button1Down(Vector2.new(0,0),Camera.CFrame)
-	VirtualUser:Button1Up(Vector2.new(0,0),Camera.CFrame)
-
+local function fastClick()
+	mouse1click()
 end
 
 -- ================= BUSCAR NPC =================
@@ -391,23 +386,33 @@ local farmTarget = nil
 local attacking = false
 local fastAttackSpeed = 0.02
 
--- ================= AUTO FARM MENU =================
+-- NOVAS FUNÇÕES
+local bringNPCs = false
+local fastAttackEnabled = false
 
+-- ================= AUTO FARM MENU =================
 criarSecao("AUTO FARM NPC",0,tabFarm)
 
-criarBotaoToggle("ATIVAR AUTO FARM",30,tabFarm,function(v)
+criarBotaoToggle("AUTO FARM",30,tabFarm,function(v)
 	autoFarmEnabled = v
 	farmTarget = nil
 end)
 
-criarSlider("ALTURA FARM",5,30,farmHeight,70,tabFarm,function(v)
+criarBotaoToggle("FAST ATTACK",70,tabFarm,function(v)
+	fastAttackEnabled = v
+end)
+
+criarBotaoToggle("BRING NPCs",110,tabFarm,function(v)
+	bringNPCs = v
+end)
+
+criarSlider("ALTURA FARM",5,30,farmHeight,150,tabFarm,function(v)
 	farmHeight = v
 end)
 
-criarSlider("DISTÂNCIA NPC",2,10,farmDistance,120,tabFarm,function(v)
+criarSlider("DISTÂNCIA NPC",2,10,farmDistance,190,tabFarm,function(v)
 	farmDistance = v
 end)
-
 -- ================= ESP FRUTAS =================
 
 local FruitRarity = {
@@ -882,6 +887,28 @@ RunService.RenderStepped:Connect(function()
 	fovCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
 end)
 
+local function bringEnemies()
+
+	local enemiesFolder = workspace:FindFirstChild("Enemies")
+	if not enemiesFolder then return end
+
+	for _,enemy in pairs(enemiesFolder:GetChildren()) do
+
+		local hum = enemy:FindFirstChild("Humanoid")
+		local root = enemy:FindFirstChild("HumanoidRootPart")
+
+		if hum and root and hum.Health > 0 then
+
+			root.Size = Vector3.new(60,60,60)
+			root.Transparency = 1
+			root.CanCollide = false
+
+		end
+
+	end
+
+end
+
 -- ================= LOOP =================
 RunService.RenderStepped:Connect(function()
 	local char = getChar()
@@ -902,9 +929,16 @@ if autoFarmEnabled then
 		local npcRoot = farmTarget:FindFirstChild("HumanoidRootPart")
 		local hum = farmTarget:FindFirstChild("Humanoid")
 
-		if npcRoot and hum and hum.Health > 0 then
+if npcRoot and hum and hum.Health > 0 then
 
-			root.CFrame = npcRoot.CFrame * CFrame.new(0,farmHeight,farmDistance)
+	if bringNPCs then
+		bringEnemies()
+	end
+
+	root.CFrame = CFrame.new(
+	npcRoot.Position + Vector3.new(0,farmHeight,farmDistance),
+	npcRoot.Position
+)
 
 			if not attacking then
 				attacking = true
@@ -913,15 +947,15 @@ if autoFarmEnabled then
 
 while autoFarmEnabled and hum.Health > 0 do
 
-	pcall(function()
-		CommF:InvokeServer("Melee")
-	end)
+	if fastAttackEnabled then
 
-	fastAttack()
-	fastAttack()
-	fastAttack()
+		for i = 1,12 do
+			mouse1click()
+		end
 
-	task.wait(fastAttackSpeed)
+	end
+
+	task.wait()
 
 end
 
