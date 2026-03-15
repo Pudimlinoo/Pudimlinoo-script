@@ -1,3 +1,21 @@
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local player = Players.LocalPlayer
+
+-- Nome EXCLUSIVO do seu Hub (Para não confundir com o Tracker)
+local NOME_DO_HUB = "PudimHub_Main_Interface"
+
+-- 1. Remove APENAS o Hub se ele já estiver aberto
+if player and player:FindFirstChild("PlayerGui") then
+    if player.PlayerGui:FindFirstChild(NOME_DO_HUB) then
+        player.PlayerGui[NOME_DO_HUB]:Destroy()
+    end
+end
+
+if CoreGui:FindFirstChild(NOME_DO_HUB) then
+    CoreGui[NOME_DO_HUB]:Destroy()
+end
+
 -- ================= SERVIÇOS =================
 local VirtualUser = game:GetService("VirtualUser")
 local Players = game:GetService("Players")
@@ -86,7 +104,7 @@ end
 
 -- ================= GUI =================
 local gui = Instance.new("ScreenGui", player.PlayerGui)
-gui.Name = "ModMenu"
+gui.Name = NOME_DO_HUB -- <--- AQUI: Usa o nome único definido lá em cima
 gui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", gui)
@@ -100,7 +118,6 @@ Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
 local stroke = Instance.new("UIStroke",frame)
 stroke.Color = Theme.Red
 stroke.Thickness = 1.5
-
 -- ================= ANIMAÇÃO DE ABERTURA =================
 local TweenService = game:GetService("TweenService")
 
