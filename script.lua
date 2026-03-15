@@ -11,6 +11,183 @@ local player = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local CommF = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
 
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+
+local Player = Players.LocalPlayer
+local FILENAME = "BloxFruits_Tracker_Final.json"
+
+--------------------------------------------------------------------------------
+-- 1. INTERFACE (GUI)
+--------------------------------------------------------------------------------
+if CoreGui:FindFirstChild("BountyTrackerGUI") then
+    CoreGui.BountyTrackerGUI:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local TotalLabel = Instance.new("TextLabel")
+local LastGainLabel = Instance.new("TextLabel")
+
+ScreenGui.Name = "BountyTrackerGUI"
+ScreenGui.Parent = CoreGui
+
+Frame.Parent = ScreenGui
+Frame.BackgroundColor3 = Color3.fromRGB(18,18,18)
+Frame.BackgroundTransparency = 0.25
+Frame.BorderSizePixel = 0
+Frame.Position = UDim2.new(0.83, 0, 0.75, 0)
+Frame.Size = UDim2.new(0, 220, 0, 100)
+Frame.Active = true
+Frame.Draggable = true
+
+local corner = Instance.new("UICorner",Frame)
+corner.CornerRadius = UDim.new(0,10)
+
+local stroke = Instance.new("UIStroke",Frame)
+stroke.Color = Color3.fromRGB(200,40,40)
+stroke.Thickness = 1.5
+
+Title.Parent = Frame
+Title.BackgroundTransparency = 1
+Title.Position = UDim2.new(0, 0, 0, 5)
+Title.Size = UDim2.new(1, 0, 0, 20)
+Title.Font = Enum.Font.GothamBold
+Title.Text = "🍮 Bounty Tracker"
+Title.TextColor3 = Color3.fromRGB(240,240,240)
+Title.TextSize = 16
+
+TotalLabel.Parent = Frame
+TotalLabel.BackgroundTransparency = 1
+TotalLabel.Position = UDim2.new(0, 0, 0, 30)
+TotalLabel.Size = UDim2.new(1, 0, 0, 30)
+TotalLabel.Font = Enum.Font.GothamBlack
+TotalLabel.Text = "Carregando..."
+TotalLabel.TextColor3 = Color3.fromRGB(200,40,40)
+TotalLabel.TextSize = 20
+
+LastGainLabel.Parent = Frame
+LastGainLabel.BackgroundTransparency = 1
+LastGainLabel.Position = UDim2.new(0, 0, 0, 60)
+LastGainLabel.Size = UDim2.new(1, 0, 0, 25)
+LastGainLabel.Font = Enum.Font.Gotham
+LastGainLabel.Text = "Último: -"
+LastGainLabel.TextColor3 = Color3.fromRGB(240,240,240)
+LastGainLabel.TextSize = 14
+
+--------------------------------------------------------------------------------
+-- 2. LÓGICA DO CONTADOR
+--------------------------------------------------------------------------------
+
+local function formatNumber(n)
+    return tostring(n):reverse():gsub("%d%d%d", "%1,"):reverse():gsub("^,", "")
+end
+
+local function updateUI(total, ultimo)
+
+    if total > 0 then
+        TotalLabel.Text = "Hoje: +" .. formatNumber(total)
+        TotalLabel.TextColor3 = Color3.fromRGB(0,255,120)
+
+    elseif total < 0 then
+        TotalLabel.Text = "Hoje: " .. formatNumber(total)
+        TotalLabel.TextColor3 = Color3.fromRGB(255,80,80)
+
+    else
+        TotalLabel.Text = "Hoje: 0"
+        TotalLabel.TextColor3 = Color3.fromRGB(240,240,240)
+    end
+
+    if ultimo ~= 0 then
+        local sinal = (ultimo > 0) and "+" or ""
+        LastGainLabel.Text = "Último: " .. sinal .. formatNumber(ultimo)
+    end
+end
+
+local function getTodayDate()
+    local d = os.date("*t")
+    return string.format("%02d-%02d-%04d", d.day, d.month, d.year)
+end
+
+task.spawn(function()
+    
+    local leaderstats = Player:WaitForChild("leaderstats", 9999)
+    local mainStat = leaderstats:WaitForChild("Bounty/Honor", 9999)
+
+    if not mainStat then
+        TotalLabel.Text = "Erro: Stat"
+        return
+    end
+
+    local currentVal = mainStat.Value
+    local startVal = currentVal
+    local lastVal = currentVal
+    local today = getTodayDate()
+
+    if isfile and isfile(FILENAME) then
+        local success, content = pcall(function()
+            return readfile(FILENAME)
+        end)
+
+        if success then
+            local decoded = HttpService:JSONDecode(content)
+
+            if decoded.date == today then
+                startVal = decoded.startVal
+            else
+                startVal = currentVal
+            end
+        end
+    end
+
+    local function saveData()
+        if writefile then
+            local data = {
+                date = getTodayDate(),
+                startVal = startVal
+            }
+
+            writefile(FILENAME, HttpService:JSONEncode(data))
+        end
+    end
+
+    saveData()
+    updateUI(currentVal - startVal, 0)
+
+    mainStat:GetPropertyChangedSignal("Value"):Connect(function()
+
+        local novo = mainStat.Value
+        local diferenca = novo - lastVal
+        local totalDia = novo - startVal
+        
+        if diferenca ~= 0 then
+            updateUI(totalDia, diferenca)
+            lastVal = novo
+            saveData()
+        end
+
+    end)
+
+    task.spawn(function()
+
+        while task.wait(1) do
+            local d = os.date("*t")
+
+            if d.hour == 0 and d.min == 0 and d.sec == 0 then
+                startVal = mainStat.Value
+                lastVal = startVal
+                updateUI(0,0)
+                saveData()
+                task.wait(2)
+            end
+
+        end
+
+    end)
+
+end)
 
 -- ================= TEMA REDZ =================
 local Theme = {
