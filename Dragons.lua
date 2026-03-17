@@ -10,18 +10,16 @@ local Lighting = game:GetService("Lighting")
 local Player = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
--- // CONFIGURAÇÕES VISUAIS (TEMA REDZ MANTIDO)
 local Theme = {
     Background = Color3.fromRGB(18, 18, 24),
     Sidebar = Color3.fromRGB(25, 25, 35),
     Element = Color3.fromRGB(35, 35, 45),
     Text = Color3.fromRGB(240, 240, 240),
-    Accent = Color3.fromRGB(255, 50, 50), -- Vermelho Redz
+    Accent = Color3.fromRGB(255, 50, 50),
     ToggleOff = Color3.fromRGB(60, 60, 70),
     Outline = Color3.fromRGB(50, 50, 60)
 }
 
--- // VARIÁVEIS DE CONTROLE
 local Configs = {
     AutoFarm = false,
     AutoEgg = false,
@@ -41,7 +39,7 @@ local State = {
     TargetMob = nil,
     CurrentEggIndex = 1,
     Flying = false,
-    WasFlying = false, -- Para resetar velocidade ao parar
+    WasFlying = false, 
     Tweening = false
 }
 
@@ -51,9 +49,8 @@ local Cache = {
     Resources = {}
 }
 
-local ESP_Storage = {} -- Armazena referências para limpeza correta
+local ESP_Storage = {} 
 
--- // FUNÇÕES ÚTEIS
 local function GetRoot()
     return Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
 end
@@ -62,13 +59,11 @@ local function GetHumanoid()
     return Player.Character and Player.Character:FindFirstChild("Humanoid")
 end
 
--- // ANTI AFK
 Player.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
 end)
 
--- // UI LIBRARY (ESTILO MANTIDO)
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "PudimLinooHub_DA"
 ScreenGui.Parent = Player:WaitForChild("PlayerGui")
@@ -84,14 +79,13 @@ MainFrame.ClipsDescendants = true
 local UICorner = Instance.new("UICorner", MainFrame)
 UICorner.CornerRadius = UDim.new(0, 10)
 
--- Top Bar
 local TopBar = Instance.new("Frame", MainFrame)
 TopBar.Size = UDim2.new(1, 0, 0, 40)
 TopBar.BackgroundColor3 = Theme.Sidebar
 Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
 
 local Title = Instance.new("TextLabel", TopBar)
-Title.Text = "PudimLinoo hub - DA🐉" -- NOME ALTERADO
+Title.Text = "PudimLinoo hub - DA🐉"
 Title.RichText = true
 Title.Size = UDim2.new(1, -20, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
@@ -101,7 +95,6 @@ Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 16
 
--- Sistema de Arrastar
 local dragging, dragInput, dragStart, startPos
 TopBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -125,7 +118,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Botão Fechar
 local CloseBtn = Instance.new("TextButton", TopBar)
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
 CloseBtn.Position = UDim2.new(1, -35, 0, 5)
@@ -135,7 +127,7 @@ CloseBtn.TextColor3 = Theme.Accent
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 18
 CloseBtn.MouseButton1Click:Connect(function() 
-    -- Limpeza ao fechar
+
     for _, data in pairs(ESP_Storage) do
         if data.Highlight then data.Highlight:Destroy() end
         if data.Billboard then data.Billboard:Destroy() end
@@ -143,7 +135,6 @@ CloseBtn.MouseButton1Click:Connect(function()
     ScreenGui:Destroy() 
 end)
 
--- Container de Tabs
 local TabContainer = Instance.new("Frame", MainFrame)
 TabContainer.Size = UDim2.new(0, 130, 1, -40)
 TabContainer.Position = UDim2.new(0, 0, 0, 40)
@@ -157,13 +148,11 @@ TabList.SortOrder = Enum.SortOrder.LayoutOrder
 
 Instance.new("UIPadding", TabContainer).PaddingTop = UDim.new(0, 10)
 
--- Container de Conteúdo
 local ContentContainer = Instance.new("Frame", MainFrame)
 ContentContainer.Size = UDim2.new(1, -140, 1, -50)
 ContentContainer.Position = UDim2.new(0, 135, 0, 45)
 ContentContainer.BackgroundTransparency = 1
 
--- Funções de UI
 local Tabs = {}
 local function CreateTab(name, icon)
     local TabButton = Instance.new("TextButton", TabContainer)
@@ -289,12 +278,10 @@ local function CreateSlider(parent, text, min, max, configKey)
     end)
 end
 
--- // CRIAÇÃO DAS ABAS
 local FarmTab = CreateTab("Auto Farm")
 local EspTab = CreateTab("Visuals / ESP")
 local PlayerTab = CreateTab("Player")
 
--- Aba Farm
 CreateToggle(FarmTab, "Auto Farm Mobs", "AutoFarm", function(state)
     if not state then
         State.TargetMob = nil
@@ -309,7 +296,6 @@ end)
 CreateSlider(FarmTab, "Velocidade do TP", 50, 300, "TweenSpeed")
 CreateToggle(FarmTab, "Auto Coletar (Recursos)", "AutoCollect")
 
--- Aba ESP (Melhorada com Callbacks de Limpeza)
 CreateToggle(EspTab, "ESP Mobs (Vermelho)", "EspMobs", function(state)
     if not state then
         for model, data in pairs(ESP_Storage) do
@@ -344,7 +330,6 @@ CreateToggle(EspTab, "ESP Recursos (Verde)", "EspResources", function(state)
     end
 end)
 
--- Aba Player
 CreateToggle(PlayerTab, "Ativar Voo (G)", "Fly", function(state)
     if not state then
         State.Flying = false
@@ -358,12 +343,10 @@ CreateSlider(PlayerTab, "Velocidade Voo", 20, 200, "FlySpeed")
 CreateSlider(PlayerTab, "Velocidade Andar", 16, 200, "WalkSpeed")
 CreateSlider(PlayerTab, "Força do Pulo", 50, 300, "JumpPower")
 
--- Inicializar primeira aba
 Tabs[1].Btn.BackgroundColor3 = Theme.Accent
 Tabs[1].Btn.TextColor3 = Color3.new(1,1,1)
 Tabs[1].Page.Visible = true
 
--- // SISTEMA DE ESP OTIMIZADO
 local function CreateESP(model, color, name, typeTag)
     if ESP_Storage[model] then return end
     local basePart = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChildWhichIsA("BasePart")
@@ -394,7 +377,6 @@ local function CreateESP(model, color, name, typeTag)
     
     ESP_Storage[model] = {Highlight = hl, Billboard = bill, TextLabel = text, Type = typeTag}
     
-    -- Limpeza automática se o objeto sumir
     model.AncestryChanged:Connect(function(_, parent)
         if not parent and ESP_Storage[model] then
             hl:Destroy()
@@ -404,13 +386,12 @@ local function CreateESP(model, color, name, typeTag)
     end)
 end
 
--- Loop Único de ESP (Performance)
 RunService.RenderStepped:Connect(function()
     local root = GetRoot()
     if not root then return end
 
     for model, data in pairs(ESP_Storage) do
-        -- Verifica se o ESP deve estar visível baseado na config
+
         local shouldShow = false
         if data.Type == "Mob" then shouldShow = Configs.EspMobs
         elseif data.Type == "Egg" then shouldShow = Configs.EspEggs
@@ -429,10 +410,9 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- // SCANNER DE OBJETOS
 task.spawn(function()
     while task.wait(1) do
-        -- Mobs
+
         if Configs.EspMobs or Configs.AutoFarm then
             Cache.Mobs = {}
             for _, v in ipairs(Workspace:GetDescendants()) do
@@ -444,8 +424,7 @@ task.spawn(function()
                 end
             end
         end
-        
-        -- Ovos e Recursos
+
         if Configs.EspEggs or Configs.EspResources or Configs.AutoEgg or Configs.AutoCollect then
             Cache.Eggs = {}
             Cache.Resources = {}
@@ -467,7 +446,6 @@ task.spawn(function()
     end
 end)
 
--- // AUTO FARM LOGIC (CORRIGIDO)
 task.spawn(function()
     while task.wait() do
         if Configs.AutoFarm then
@@ -484,12 +462,10 @@ task.spawn(function()
                     end
                     State.TargetMob = closest
                 end
-                
-                -- Atacar Alvo
                 if State.TargetMob then
                     local mobRoot = State.TargetMob:FindFirstChild("HumanoidRootPart")
                     if mobRoot then
-                        -- Teleporte seguro acima do mob
+
                         root.CFrame = CFrame.new(mobRoot.Position + Vector3.new(0, Configs.FarmDistance, 0), mobRoot.Position)
                         root.Velocity = Vector3.new(0,0,0)
                         VirtualUser:ClickButton1(Vector2.new())
@@ -502,7 +478,6 @@ task.spawn(function()
     end
 end)
 
--- // AUTO EGG LOGIC (TP)
 task.spawn(function()
     while task.wait(0.5) do
         if Configs.AutoEgg and #Cache.Eggs > 0 then
@@ -524,7 +499,6 @@ task.spawn(function()
                         tween.Completed:Wait()
                     end
                     
-                    -- Coletar
                     root.CFrame = eggPart.CFrame
                     local prompt = egg:FindFirstChildWhichIsA("ProximityPrompt", true)
                     if prompt then
@@ -542,7 +516,6 @@ task.spawn(function()
     end
 end)
 
--- // AUTO COLLECT
 task.spawn(function()
     while task.wait(0.2) do
         if Configs.AutoCollect then
@@ -564,8 +537,6 @@ task.spawn(function()
         end
     end
 end)
-
--- // PLAYER MODS E FLY CORRIGIDO
 RunService.RenderStepped:Connect(function()
     local hum = GetHumanoid()
     local root = GetRoot()
@@ -575,7 +546,6 @@ RunService.RenderStepped:Connect(function()
         hum.JumpPower = Configs.JumpPower
     end
     
-    -- Voo Corrigido
     local isFlying = Configs.Fly and State.Flying
     
     if isFlying and root then
@@ -600,14 +570,12 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Toggle Fly Key
 UserInputService.InputBegan:Connect(function(input, gp)
     if not gp and input.KeyCode == Enum.KeyCode.G then
         State.Flying = not State.Flying
     end
 end)
 
--- Notificação Inicial
 game:GetService("StarterGui"):SetCore("SendNotification", {
     Title = "PudimLinoo Hub",
     Text = "Script Dragon Adventures Carregado! 🐉",
