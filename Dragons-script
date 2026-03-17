@@ -1,0 +1,579 @@
+-- ================= SERVIÃ‡OS =================
+local VirtualUser = game:GetService("VirtualUser")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+-- ================= ANTI-AFK =================
+player.Idled:Connect(function()
+	VirtualUser:Button2Down(Vector2.new(0,0), Camera.CFrame)
+	task.wait(1)
+	VirtualUser:Button2Up(Vector2.new(0,0), Camera.CFrame)
+end)
+
+-- ================= TEMA REDZ PREMIUM =================
+local Theme = {
+	Main = Color3.fromRGB(15, 15, 15),       
+	Second = Color3.fromRGB(22, 22, 22),     
+	Button = Color3.fromRGB(30, 30, 30),     
+	Red = Color3.fromRGB(255, 60, 40),       
+	DarkRed = Color3.fromRGB(160, 30, 20),   
+	Text = Color3.fromRGB(240, 240, 240)
+}
+
+-- ================= VARIÃVEIS DE SISTEMA =================
+local Configs = {
+    FarmMobs = false,
+    AutoColeta = false,
+    AutoMagnet = false,
+    AutoEgg = false, 
+    TpSpeed = 100,   
+    EspOvos = false,
+    EspMobs = false,
+    Fly = false,
+    Noclip = false,
+    FarmHeight = 15,
+    FarmDistance = 0,
+    FlySpeed = 3,
+    WalkSpeed = 16,
+    JumpPower = 50
+}
+
+local currentTarget = nil
+local eggTargetIndex = 1 
+local currentTween = nil 
+local Cache = { Mobs = {}, Ovos = {}, Prompts = {} }
+local ESP_Objects = {}
+
+-- ================= FUNÃ‡Ã•ES DO PLAYER =================
+local function getChar() return player.Character or player.CharacterAdded:Wait() end
+local function getRoot() return getChar():WaitForChild("HumanoidRootPart", 5) end
+local function getHumanoid() return getChar():WaitForChild("Humanoid", 5) end
+
+local function CancelarTween()
+    if currentTween then
+        currentTween:Cancel()
+        currentTween = nil
+    end
+end
+
+-- ================= GUI PRINCIPAL =================
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "DA_PremiumHub"
+gui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 500, 0, 380)
+frame.Position = UDim2.new(0.5, -250, 0.5, -190)
+frame.BackgroundColor3 = Theme.Main
+frame.BorderSizePixel = 0
+frame.ClipsDescendants = false
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+Instance.new("UIStroke", frame).Color = Theme.Red
+Instance.new("UIStroke", frame).Thickness = 1.5
+
+-- Sombra
+local shadow = Instance.new("ImageLabel", frame)
+shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+shadow.Size = UDim2.new(1, 40, 1, 40)
+shadow.Image = "rbxassetid://1316045217"
+shadow.ImageTransparency = 0.5
+shadow.BackgroundTransparency = 1
+shadow.ZIndex = 0
+
+-- TÃ­tulo
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, 0, 0, 40)
+title.BackgroundColor3 = Theme.DarkRed
+title.Text = " ðŸ‰ Dragon Adventures Premium"
+title.TextColor3 = Theme.Text
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UIPadding", title).PaddingLeft = UDim.new(0, 15)
+Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
+
+-- Drag UI
+local dragging, dragStart, startPos
+title.InputBegan:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true; dragStart = i.Position; startPos = frame.Position
+	end
+end)
+UserInputService.InputChanged:Connect(function(i)
+	if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = i.Position - dragStart
+		frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
+title.InputEnded:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+end)
+
+-- ================= ABAS (TABS) =================
+local sidebar = Instance.new("Frame", frame)
+sidebar.Size = UDim2.new(0, 140, 1, -40)
+sidebar.Position = UDim2.new(0, 0, 0, 40)
+sidebar.BackgroundColor3 = Theme.Second
+sidebar.BorderSizePixel = 0
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 10)
+
+local layoutSidebar = Instance.new("UIListLayout", sidebar)
+layoutSidebar.Padding = UDim.new(0, 5)
+layoutSidebar.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layoutSidebar.SortOrder = Enum.SortOrder.LayoutOrder
+Instance.new("UIPadding", sidebar).PaddingTop = UDim.new(0, 10)
+
+local container = Instance.new("Frame", frame)
+container.Size = UDim2.new(1, -150, 1, -50)
+container.Position = UDim2.new(0, 145, 0, 45)
+container.BackgroundTransparency = 1
+
+local tabs = {}
+local currentTab
+
+local function createTab(name)
+	local btn = Instance.new("TextButton", sidebar)
+	btn.Size = UDim2.new(0.9, 0, 0, 32)
+	btn.BackgroundColor3 = Theme.Button
+	btn.Text = name
+	btn.Font = Enum.Font.GothamBold
+	btn.TextColor3 = Theme.Text
+	btn.TextSize = 13
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+	local page = Instance.new("ScrollingFrame", container)
+	page.Size = UDim2.new(1, 0, 1, 0)
+	page.BackgroundTransparency = 1
+	page.ScrollBarThickness = 2
+	page.ScrollBarImageColor3 = Theme.Red
+	page.Visible = false
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	
+	local layout = Instance.new("UIListLayout", page)
+	layout.Padding = UDim.new(0, 8)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+    Instance.new("UIPadding", page).PaddingRight = UDim.new(0, 10)
+
+	btn.MouseButton1Click:Connect(function()
+		for _,v in pairs(container:GetChildren()) do if v:IsA("ScrollingFrame") then v.Visible = false end end
+        for _,v in pairs(sidebar:GetChildren()) do if v:IsA("TextButton") then v.BackgroundColor3 = Theme.Button v.TextColor3 = Theme.Text end end
+		page.Visible = true
+        btn.BackgroundColor3 = Theme.Red
+        btn.TextColor3 = Color3.new(1,1,1)
+		currentTab = page
+	end)
+
+	table.insert(tabs, page)
+	if not currentTab then 
+        page.Visible = true; currentTab = page 
+        btn.BackgroundColor3 = Theme.Red; btn.TextColor3 = Color3.new(1,1,1)
+    end
+	return page
+end
+
+local tabFarm = createTab("âš”ï¸ Auto Farm")
+local tabColeta = createTab("ðŸŽ Ovos & Coleta")
+local tabESP = createTab("ðŸ‘ï¸ Visuals ESP")
+local tabPlayer = createTab("ðŸƒ Player")
+
+-- ================= COMPONENTES DA UI =================
+local function criarSecao(txt, p)
+	local l = Instance.new("TextLabel", p)
+	l.Size = UDim2.new(1, 0, 0, 20)
+	l.BackgroundTransparency = 1
+	l.Text = txt
+	l.TextColor3 = Theme.Red
+	l.Font = Enum.Font.GothamBold
+	l.TextSize = 14
+	l.TextXAlignment = Enum.TextXAlignment.Left
+end
+
+local function criarToggle(txt, p, cfgKey, callback)
+	local frame = Instance.new("Frame", p)
+	frame.Size = UDim2.new(1, 0, 0, 36)
+	frame.BackgroundColor3 = Theme.Second
+	Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+	local label = Instance.new("TextLabel", frame)
+	label.Size = UDim2.new(0.8, 0, 1, 0)
+	label.Position = UDim2.new(0, 10, 0, 0)
+	label.BackgroundTransparency = 1
+	label.Text = txt
+	label.Font = Enum.Font.GothamBold
+	label.TextColor3 = Theme.Text
+	label.TextSize = 13
+	label.TextXAlignment = Enum.TextXAlignment.Left
+
+	local toggle = Instance.new("Frame", frame)
+	toggle.Size = UDim2.new(0, 40, 0, 20)
+	toggle.Position = UDim2.new(1, -50, 0.5, -10)
+	toggle.BackgroundColor3 = Theme.Button
+	Instance.new("UICorner", toggle).CornerRadius = UDim.new(1, 0)
+
+	local circle = Instance.new("Frame", toggle)
+	circle.Size = UDim2.new(0, 16, 0, 16)
+	circle.Position = UDim2.new(0, 2, 0.5, -8)
+	circle.BackgroundColor3 = Color3.new(1, 1, 1)
+	Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+
+	toggle.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then
+			Configs[cfgKey] = not Configs[cfgKey]
+			toggle.BackgroundColor3 = Configs[cfgKey] and Theme.Red or Theme.Button
+			TweenService:Create(circle, TweenInfo.new(0.2), {Position = Configs[cfgKey] and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)}):Play()
+            if callback then callback(Configs[cfgKey]) end
+		end
+	end)
+end
+
+local function criarBotaoAcao(txt, p, callback)
+    local btn = Instance.new("TextButton", p)
+    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.BackgroundColor3 = Color3.fromRGB(160, 40, 20)
+    btn.Text = txt
+    btn.Font = Enum.Font.GothamBold
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.TextSize = 13
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    btn.MouseButton1Click:Connect(callback)
+end
+
+local function criarSlider(txt, min, max, cfgKey, p)
+    local frame = Instance.new("Frame", p)
+    frame.Size = UDim2.new(1, 0, 0, 45)
+    frame.BackgroundColor3 = Theme.Second
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+	local label = Instance.new("TextLabel", frame)
+	label.Position = UDim2.new(0, 10, 0, 5)
+	label.Size = UDim2.new(1, -20, 0, 20)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Theme.Text
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 12
+	label.Text = txt .. ": " .. Configs[cfgKey]
+    label.TextXAlignment = Enum.TextXAlignment.Left
+
+	local bar = Instance.new("Frame", frame)
+	bar.Position = UDim2.new(0, 10, 0, 30)
+	bar.Size = UDim2.new(1, -20, 0, 6)
+	bar.BackgroundColor3 = Theme.Main
+	Instance.new("UICorner", bar)
+
+	local fill = Instance.new("Frame", bar)
+	fill.Size = UDim2.new((Configs[cfgKey]-min)/(max-min), 0, 1, 0)
+	fill.BackgroundColor3 = Theme.Red
+	Instance.new("UICorner", fill)
+
+	bar.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then
+			local conn
+			conn = UserInputService.InputChanged:Connect(function(m)
+				if m.UserInputType == Enum.UserInputType.MouseMovement then
+					local r = math.clamp((m.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+					local v = math.floor(min + (max - min) * r)
+					fill.Size = UDim2.new(r, 0, 1, 0)
+					label.Text = txt .. ": " .. v
+					Configs[cfgKey] = v
+				end
+			end)
+			bar.InputEnded:Wait()
+			conn:Disconnect()
+		end
+	end)
+end
+
+-- ================= MONTANDO MENUS =================
+criarSecao("COMBATE", tabFarm)
+criarToggle("Auto Matar Mobs", tabFarm, "FarmMobs")
+criarSlider("Altura Acima do Mob", 0, 40, "FarmHeight", tabFarm)
+criarSlider("DistÃ¢ncia Frontal", 0, 20, "FarmDistance", tabFarm)
+
+criarSecao("TELEPORT PARA OVOS", tabColeta)
+criarToggle("Auto Voar atÃ© Ovos (TP)", tabColeta, "AutoEgg", function(ligado)
+    if not ligado then CancelarTween() end
+end)
+criarSlider("Velocidade do TP", 50, 400, "TpSpeed", tabColeta)
+criarBotaoAcao("â­ï¸ Pular para o PrÃ³ximo Ovo", tabColeta, function()
+    if #Cache.Ovos > 0 then
+        eggTargetIndex = eggTargetIndex + 1
+        if eggTargetIndex > #Cache.Ovos then eggTargetIndex = 1 end
+        CancelarTween() 
+    end
+end)
+
+criarSecao("RECURSOS", tabColeta)
+criarToggle("Auto Coletar (Ãrvores/Frutas)", tabColeta, "AutoColeta")
+criarToggle("Auto Puxar Moedas/Carnes", tabColeta, "AutoMagnet")
+
+criarSecao("VISUAIS (ESP)", tabESP)
+criarToggle("ESP Ovos", tabESP, "EspOvos")
+criarToggle("ESP Inimigos", tabESP, "EspMobs")
+
+criarSecao("MOVIMENTO", tabPlayer)
+criarToggle("Ativar VÃ´o (Alt + Click)", tabPlayer, "Fly")
+criarSlider("Velocidade VÃ´o", 1, 10, "FlySpeed", tabPlayer)
+criarToggle("NoClip (Atravessar Tudo)", tabPlayer, "Noclip")
+criarSlider("WalkSpeed", 16, 200, "WalkSpeed", tabPlayer)
+criarSlider("JumpPower", 50, 200, "JumpPower", tabPlayer)
+
+-- ================= SISTEMA ANTI-LAG (SCANNER EM SEGUNDO PLANO) =================
+task.spawn(function()
+    while task.wait(3) do
+        local tempMobs = {}
+        local tempOvos = {}
+        local tempPrompts = {}
+        
+        pcall(function()
+            for _, v in ipairs(workspace:GetDescendants()) do
+                -- Achar Ovos
+                if v:IsA("Model") and v.Name:lower():match("egg") and v:FindFirstChildWhichIsA("BasePart") then
+                    table.insert(tempOvos, v)
+                
+                -- Achar Prompts (Comida/Harvest)
+                elseif v:IsA("ProximityPrompt") then
+                    table.insert(tempPrompts, v)
+
+                -- Achar Mobs
+                elseif v:IsA("Model") and v:FindFirstChild("Humanoid") and v:FindFirstChild("HumanoidRootPart") and v.Name ~= player.Name then
+                    if not Players:GetPlayerFromCharacter(v) and v.Humanoid.Health > 0 then
+                        table.insert(tempMobs, v)
+                    end
+                end
+            end
+        end)
+        
+        Cache.Mobs = tempMobs
+        Cache.Ovos = tempOvos
+        Cache.Prompts = tempPrompts
+    end
+end)
+
+-- ================= LOOP DE TWEEN E COLETA DOS OVOS =================
+task.spawn(function()
+    -- Roda super rÃ¡pido (0.1s) para poder spammar o botÃ£o de coletar ao chegar no ovo
+    while task.wait(0.1) do
+        if not Configs.AutoEgg or #Cache.Ovos == 0 then continue end
+
+        local root = getRoot()
+        local hum = getHumanoid()
+        if not root or not hum then continue end
+
+        if eggTargetIndex > #Cache.Ovos then eggTargetIndex = 1 end
+        local alvo = Cache.Ovos[eggTargetIndex] -- alvo aqui Ã© um "Model"
+
+        -- Pega a parte central do modelo do ovo para voar atÃ© lÃ¡
+        local targetPart = alvo and alvo:FindFirstChildWhichIsA("BasePart")
+
+        if alvo and alvo.Parent and targetPart then
+            local distancia = (root.Position - targetPart.Position).Magnitude
+
+            if distancia > 10 then
+                -- Desmontar do dragÃ£o antes de voar (Evita bugs)
+                if hum.Sit then 
+                    hum.Sit = false 
+                    task.wait(0.2) 
+                end
+
+                if not currentTween or currentTween.PlaybackState ~= Enum.PlaybackState.Playing then
+                    local tempo = distancia / Configs.TpSpeed
+                    local tweenInfo = TweenInfo.new(tempo, Enum.EasingStyle.Linear)
+                    
+                    currentTween = TweenService:Create(root, tweenInfo, {CFrame = targetPart.CFrame * CFrame.new(0, 3, 0)})
+                    currentTween:Play()
+                end
+            else
+                -- CHEGOU NO OVO!
+                CancelarTween()
+                root.AssemblyLinearVelocity = Vector3.new(0,0,0)
+                
+                -- Procura o botÃ£o de interaÃ§Ã£o dentro do ovo
+                local prompt = alvo:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if prompt then 
+                    -- HACKS DE COLETA: Tira o tempo de segurar a tecla e ignora paredes
+                    prompt.HoldDuration = 0
+                    prompt.RequiresLineOfSight = false
+                    
+                    -- Fica disparando o "E" repetidamente atÃ© o ovo sumir do mapa
+                    fireproximityprompt(prompt) 
+                end
+            end
+        else
+            -- Ovo sumiu do mapa (foi coletado com sucesso ou despawnou)
+            CancelarTween()
+            eggTargetIndex = eggTargetIndex + 1
+        end
+    end
+end)
+
+-- ================= LOOP PRINCIPAL (COMBATE E PLAYER) =================
+RunService.Heartbeat:Connect(function()
+    local root = getRoot()
+    local hum = getHumanoid()
+    if not root or not hum then return end
+
+    -- Modificadores
+    hum.WalkSpeed = Configs.WalkSpeed
+    hum.JumpPower = Configs.JumpPower
+
+    -- Noclip (Ativa automÃ¡tico se o TP de ovo estiver rodando)
+    if Configs.Noclip or (Configs.AutoEgg and currentTween) then
+        for _, v in ipairs(getChar():GetDescendants()) do
+            if v:IsA("BasePart") then v.CanCollide = false end
+        end
+    end
+
+    -- Auto Farm
+	if Configs.FarmMobs then
+		if not currentTarget or not currentTarget.Parent or not currentTarget:FindFirstChild("Humanoid") or currentTarget.Humanoid.Health <= 0 then
+            local dist = math.huge
+            currentTarget = nil
+            for _, mob in ipairs(Cache.Mobs) do
+                if mob and mob.Parent and mob:FindFirstChild("HumanoidRootPart") and mob.Humanoid.Health > 0 then
+                    local d = (root.Position - mob.HumanoidRootPart.Position).Magnitude
+                    if d < dist then
+                        dist = d
+                        currentTarget = mob
+                    end
+                end
+            end
+		end
+
+		if currentTarget then
+			local npcRoot = currentTarget:FindFirstChild("HumanoidRootPart")
+			if npcRoot then
+                root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                root.CFrame = CFrame.new(npcRoot.Position + Vector3.new(0, Configs.FarmHeight, Configs.FarmDistance), npcRoot.Position)
+                pcall(function() VirtualUser:ClickButton1(Vector2.new(0,0), Camera.CFrame) end)
+			end
+		end
+	end
+end)
+
+-- ================= LOOP DE COLETA (LENTO) =================
+task.spawn(function()
+    while task.wait(0.5) do
+        local root = getRoot()
+        if not root then continue end
+
+        -- Coletar (Usa o Cache)
+        if Configs.AutoColeta then
+            pcall(function()
+                for _, prompt in ipairs(Cache.Prompts) do
+                    if prompt and prompt.Parent and prompt.Parent:IsA("BasePart") then
+                        if (root.Position - prompt.Parent.Position).Magnitude < 40 then 
+                            fireproximityprompt(prompt)
+                        end
+                    end
+                end
+            end)
+        end
+
+        -- Auto Magnet (Puxa moedas soltas)
+        if Configs.AutoMagnet then
+            pcall(function()
+                for _, obj in ipairs(workspace:GetChildren()) do
+                    if obj:IsA("BasePart") and (obj.Name:lower():match("coin") or obj.Name:lower():match("meat")) then
+                        obj.CFrame = root.CFrame
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- ================= ESP (LIMPEZA INTELIGENTE) =================
+local function gerenciarESP(objeto, tipo, cor, ativo)
+    local part = objeto:IsA("Model") and objeto:FindFirstChildWhichIsA("BasePart") or objeto
+    if not part then return end
+
+    if ativo then
+        if not ESP_Objects[part] then
+            local bill = Instance.new("BillboardGui", part)
+            bill.Size = UDim2.new(0, 100, 0, 30)
+            bill.AlwaysOnTop = true
+            local txt = Instance.new("TextLabel", bill)
+            txt.Size = UDim2.new(1, 0, 1, 0)
+            txt.BackgroundTransparency = 1
+            txt.Text = tipo
+            txt.TextColor3 = cor
+            txt.Font = Enum.Font.GothamBold
+            txt.TextScaled = true
+            ESP_Objects[part] = bill
+        end
+    else
+        if ESP_Objects[part] then
+            ESP_Objects[part]:Destroy()
+            ESP_Objects[part] = nil
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    -- Limpa ESPs velhos de objetos que foram destruÃ­dos
+    for part, gui in pairs(ESP_Objects) do
+        if not part or not part.Parent then
+            if gui then gui:Destroy() end
+            ESP_Objects[part] = nil
+        end
+    end
+
+    -- Aplica ESP de Ovos
+    pcall(function()
+        for _, ovo in ipairs(Cache.Ovos) do
+            gerenciarESP(ovo, "ðŸ¥š OVO", Color3.fromRGB(255, 255, 0), Configs.EspOvos)
+        end
+    end)
+
+    -- Aplica ESP de Mobs
+    pcall(function()
+        for _, mob in ipairs(Cache.Mobs) do
+            gerenciarESP(mob, "ðŸ‘¿ MOB", Color3.fromRGB(255, 80, 80), Configs.EspMobs)
+        end
+    end)
+end)
+
+-- ================= FLY & HOTKEYS =================
+local flying = false
+local altPressed = false
+
+UserInputService.InputBegan:Connect(function(i, gp)
+	if gp then return end
+    if i.KeyCode == Enum.KeyCode.G then frame.Visible = not frame.Visible end
+	if i.KeyCode == Enum.KeyCode.LeftAlt or i.KeyCode == Enum.KeyCode.RightAlt then altPressed = true end
+	
+    if altPressed and i.UserInputType == Enum.UserInputType.MouseButton1 and Configs.Fly then
+		flying = not flying
+		local root = getRoot()
+		if root then root.Anchored = flying end
+	end
+end)
+UserInputService.InputEnded:Connect(function(i)
+	if i.KeyCode == Enum.KeyCode.LeftAlt or i.KeyCode == Enum.KeyCode.RightAlt then altPressed = false end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if not flying or not Configs.Fly then return end
+	local root = getRoot()
+	if not root then return end
+	
+    local move = Vector3.zero
+	if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += Camera.CFrame.LookVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= Camera.CFrame.LookVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= Camera.CFrame.RightVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += Camera.CFrame.RightVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0,1,0) end
+	if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move -= Vector3.new(0,1,0) end
+
+	if move.Magnitude > 0 then
+		root.CFrame = CFrame.new(root.Position + (move.Unit * Configs.FlySpeed), root.Position + Camera.CFrame.LookVector)
+	end
+end)
