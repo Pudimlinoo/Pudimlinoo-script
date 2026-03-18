@@ -360,28 +360,7 @@ task.spawn(function()
     end
 end)
 
--- // AUTO START RACE
-task.spawn(function()
-    while task.wait(1) do
-        if Configs.AutoRiding and Configs.AutoStartRace then
-            local root = GetRoot()
-            if root then
-                for _, prompt in pairs(Workspace:GetDescendants()) do
-                    if prompt:IsA("ProximityPrompt") then
-                        if prompt.ObjectText:lower():find("race") or prompt.ActionText:lower():find("race") or prompt.Parent.Name:lower():find("start") then
-                            if (root.Position - prompt.Parent.Position).Magnitude < 15 then
-                                fireproximityprompt(prompt)
-                                task.wait(1)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
--- // AUTO RIDING V11 (CORRIGIDO COM FILTROS DA PRINT)
+-- // AUTO RIDING
 task.spawn(function()
     while task.wait() do
         if Configs.AutoRiding then
@@ -520,7 +499,6 @@ task.spawn(function()
     end
 end)
 
--- Fly e Player Mods
 RunService.RenderStepped:Connect(function()
     local h, r = GetHumanoid(), GetRoot()
     if h then h.WalkSpeed = Configs.WalkSpeed; h.JumpPower = Configs.JumpPower end
@@ -545,4 +523,4 @@ UserInputService.InputBegan:Connect(function(input, gp)
     elseif input.KeyCode == Enum.KeyCode.H then MainFrame.Visible = not MainFrame.Visible end
 end)
 
-game:GetService("StarterGui"):SetCore("SendNotification", {Title = "PudimHub V11", Text = "Carregado com Sucesso!", Duration = 5})
+game:GetService("StarterGui"):SetCore("SendNotification", {Title = "PudimHub - DA🐉", Text = "Carregado com Sucesso!", Duration = 5})
