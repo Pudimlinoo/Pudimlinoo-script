@@ -148,7 +148,7 @@ TopBar.BackgroundColor3 = Theme.Sidebar
 Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 10)
 
 local Title = Instance.new("TextLabel", TopBar)
-Title.Text = "PudimHub - DA 🐉 (V15)"
+Title.Text = "PudimHub - DA 🐉"
 Title.RichText = true
 Title.Size = UDim2.new(1, -20, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
