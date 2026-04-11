@@ -1,3 +1,5 @@
+repeat task.wait() until game:IsLoaded()
+
 local player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 
