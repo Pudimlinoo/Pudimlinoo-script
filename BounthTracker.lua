@@ -2,6 +2,7 @@ repeat task.wait() until game:IsLoaded()
 
 local player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
 
 local FILE_NAME = "bounty_tracker.txt"
 
@@ -9,16 +10,15 @@ local today = 0
 local lastChange = 0
 local lastBounty = 0
 local lastResetDay = os.date("%d")
-local isStabilizing = false -- << NOVO: Controle de estabilização
+local isStabilizing = false
 
 -- LOAD
 pcall(function()
 	if isfile and isfile(FILE_NAME) then
 		local data = readfile(FILE_NAME)
 		local tdy, day = string.match(data, "(-?%d+)|(%d+)")
-		
 		if tdy then today = tonumber(tdy) end
-		if day then lastResetDay = day end
+		if day then lastResetDay = tonumber(day) end
 	end
 end)
 
@@ -31,13 +31,10 @@ local function saveData()
 	end)
 end
 
--- ESPERAR
-repeat task.wait() until player
-repeat task.wait() until player:FindFirstChild("leaderstats")
-
+-- ESPERAR E ENCONTRAR STATS
+repeat task.wait() until player and player:FindFirstChild("leaderstats")
 local stats = player.leaderstats
 
--- DETECTAR BOUNTY
 local bountyStat
 for _,v in pairs(stats:GetChildren()) do
 	if v:IsA("IntValue") or v:IsA("NumberValue") then
@@ -49,29 +46,30 @@ for _,v in pairs(stats:GetChildren()) do
 end
 
 if not bountyStat then
-	warn("❌ Não encontrou bounty")
+	warn("❌ Bounty Tracker: Não encontrou stats de bounty/honor.")
 	return
 end
 
 lastBounty = bountyStat.Value
 
--- << NOVO: Proteção contra respawn/teleporte >>
+-- Proteção contra respawn/teleporte
 player.CharacterAdded:Connect(function()
 	isStabilizing = true
 	task.wait(3) -- Espera 3 segundos para o bounty carregar
-	lastBounty = bountyStat.Value -- Sincroniza com o valor real
+	lastBounty = bountyStat.Value
 	isStabilizing = false
 end)
 
 -- FORMAT
 local function format(n)
+    local num = math.floor(math.abs(n) + 0.5)
 	local sign = n >= 0 and "+" or "-"
-	n = math.abs(n)
-	return sign .. tostring(n):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+	return sign .. tostring(num):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
 end
 
 -- ================= UI FINAL CLEAN =================
 local gui = Instance.new("ScreenGui", CoreGui)
+gui.Name = "BountyTrackerGUI"
 
 local frame = Instance.new("Frame", gui)
 frame.Size = UDim2.new(0, 250, 0, 85)
@@ -81,12 +79,10 @@ frame.BackgroundTransparency = 0.15
 frame.BorderSizePixel = 0
 Instance.new("UICorner", frame).CornerRadius = UDim.new(0,8)
 
--- 🔴 BORDA
 local stroke = Instance.new("UIStroke", frame)
 stroke.Color = Color3.fromRGB(255,60,60)
 stroke.Thickness = 1.2
 
--- 🧭 TÍTULO
 local title = Instance.new("TextLabel", frame)
 title.Size = UDim2.new(1,0,0,20)
 title.BackgroundTransparency = 1
@@ -97,7 +93,6 @@ title.TextSize = 13
 title.TextXAlignment = Enum.TextXAlignment.Center
 title.Position = UDim2.new(0,0,0,2)
 
--- 🟢 HOJE CENTRALIZADO
 local todayText = Instance.new("TextLabel", frame)
 todayText.Position = UDim2.new(0,0,0,22)
 todayText.Size = UDim2.new(1,0,0,30)
@@ -107,7 +102,6 @@ todayText.TextSize = 22
 todayText.TextXAlignment = Enum.TextXAlignment.Center
 todayText.TextColor3 = Color3.fromRGB(0,255,120)
 
--- ⚪ ÚLTIMO CENTRALIZADO
 local lastText = Instance.new("TextLabel", frame)
 lastText.Position = UDim2.new(0,0,0,52)
 lastText.Size = UDim2.new(1,0,0,20)
@@ -117,30 +111,51 @@ lastText.Font = Enum.Font.Gotham
 lastText.TextSize = 13
 lastText.TextXAlignment = Enum.TextXAlignment.Center
 
--- ================= ANIMAÇÃO DO HOJE =================
-local displayToday = today
+-- =================================================================
+-- << MELHORIA >> NOVO MOTOR DE ANIMAÇÃO COM "BOUNCE" (MOLA)
+-- =================================================================
 
-local function animateToday(target)
-	task.spawn(function()
-		while math.floor(displayToday) ~= math.floor(target) do
-			local diff = target - displayToday
-			displayToday += diff * 0.15
-			
-			if math.abs(diff) < 1 then
-				displayToday = target
-			end
-			
-			task.wait(0.03)
-		end
-	end)
-end
+-- Variáveis de controle da animação
+local targetToday = today      -- O valor que queremos alcançar
+local displayToday = today     -- O valor que está sendo mostrado na tela
+local todayVelocity = 0        -- A "velocidade" da animação do número
 
--- LOOP
+-- Configurações da física da mola (ajuste para mudar o efeito)
+local SPRING_TENSION = 0.1   -- Quão "forte" a mola é. (Valores maiores = mais rápido)
+local SPRING_DAMPING = 0.82  -- Amortecimento. (Valores menores = mais "saltitante")
+
+-- Loop de animação contínuo (roda a cada frame)
+RunService.RenderStepped:Connect(function(dt)
+    -- Calcula a diferença entre o alvo e o valor atual
+    local force = targetToday - displayToday
+    
+    -- Se estivermos perto o suficiente e quase parados, trava no valor final para evitar tremer
+    if math.abs(force) < 0.1 and math.abs(todayVelocity) < 0.1 then
+        displayToday = targetToday
+        todayVelocity = 0
+    else
+        -- Aplica a física da mola para criar o efeito de "bounce"
+        todayVelocity = (todayVelocity * SPRING_DAMPING) + (force * SPRING_TENSION)
+        displayToday += todayVelocity * dt * 60 -- Multiplica por dt para ser independente de FPS
+    end
+
+    -- Atualiza o texto da UI a cada frame
+    if today >= 0 then
+        todayText.TextColor3 = Color3.fromRGB(0,255,120) -- Verde
+    else
+        todayText.TextColor3 = Color3.fromRGB(255,70,70) -- Vermelho
+    end
+    todayText.Text = "Hoje: " .. format(displayToday)
+end)
+
+
+-- =================================================================
+-- LOOP DE LÓGICA PRINCIPAL (SEPARADO DA ANIMAÇÃO)
+-- =================================================================
+
 task.spawn(function()
-	while true do
-		task.wait(1)
-
-		-- << NOVO: Pula se estiver estabilizando (respawn/teleporte) >>
+	while task.wait(1) do
+		-- Pula se estiver estabilizando (respawn/teleporte)
 		if isStabilizing then
 			lastBounty = bountyStat.Value -- Mantém sincronizado
 			continue 
@@ -149,33 +164,32 @@ task.spawn(function()
 		local current = bountyStat.Value
 		local diff = current - lastBounty
 
-		-- << NOVO: Só conta se a mudança for razoável (menor que 500k) >>
+		-- Só conta se a mudança for razoável (evita bugs de reset)
 		if diff ~= 0 and math.abs(diff) < 500000 then
 			lastChange = diff
 			today += diff
+			
+			targetToday = today -- << MELHORIA >> Apenas atualiza o ALVO da animação
+			
 			saveData()
-			animateToday(today)
 		end
 
-		-- reset diário
-		local currentDay = os.date("%d")
+		-- Reset diário
+		local currentDay = tonumber(os.date("%d"))
 		if currentDay ~= lastResetDay then
 			today = 0
+			lastChange = 0
 			lastResetDay = currentDay
+			
+			targetToday = today -- << MELHORIA >> Atualiza o ALVO para zero
+			
 			saveData()
-			animateToday(today)
 		end
 
-		-- 🔥 COR DINÂMICA
-		if today >= 0 then
-			todayText.TextColor3 = Color3.fromRGB(0,255,120)
-		else
-			todayText.TextColor3 = Color3.fromRGB(255,70,70)
-		end
+		-- Atualiza o texto "Último"
+		lastText.Text = "Último: " .. format(lastChange)
 
-		todayText.Text = "Hoje: "..format(displayToday)
-		lastText.Text = "Último: "..format(lastChange)
-
+		-- Sincroniza o bounty para a próxima verificação
 		lastBounty = current
 	end
 end)
