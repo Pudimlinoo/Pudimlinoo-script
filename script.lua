@@ -108,7 +108,7 @@ gui.Name = NOME_DO_HUB -- <--- AQUI: Usa o nome único definido lá em cima
 gui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0,460,0,430)
+frame.Size = UDim2.new(0,460,0,520)
 frame.Position = UDim2.new(0.03,0,0.35,0)
 frame.BackgroundColor3 = Theme.Main
 frame.BackgroundTransparency = 0.05
@@ -399,7 +399,11 @@ local ESPAtivo = false
 -- ESP FRUTAS
 local fruitESPEnabled = false
 local fruitEspObjects = {}
-
+-- auto safe
+local autoSafeEnabled = false
+local autoSafePercent = 30 -- 30% da sua vida máxima
+local autoSafeHeight = 10000
+local emFuga = false
 -- ================= AUTO FARM VARIÁVEIS =================
 
 local autoFarmEnabled = false
@@ -548,6 +552,10 @@ criarSlider("Velocidade TP",0,10,0,220,tabPlayer,function(v)
 	tpSpeed = v
 end)
 
+criarSecao("AUTO SAFE", 270, tabPlayer)
+criarBotaoToggle("AUTO SAFE", 300, tabPlayer, function(v) autoSafeEnabled = v end)
+criarSlider("Limite % Vida", 5, 95, autoSafePercent, 340, tabPlayer, function(v) autoSafePercent = v end)
+criarSlider("Altura Safe", 200, 20000, autoSafeHeight, 410, tabPlayer, function(v) autoSafeHeight = v end)
 -- ================= ESP =================
 criarSecao("ESP",0,tabESP)
 criarBotaoToggle("ESP JOGADORES",30,tabESP,function(v)
@@ -916,8 +924,24 @@ RunService.RenderStepped:Connect(function()
 	local hum = getHumanoid()
 	local root = getRoot()
 
+    if autoSafeEnabled then
+        if hum and hum.Health > 0 then
+            -- CALCULA O LIMITE BASEADO NA SUA VIDA MÁXIMA
+            local limite = hum.MaxHealth * (autoSafePercent / 100)
 
-
+            if hum.Health > limite and emFuga == true then
+                emFuga = false
+            end
+            if hum.Health <= limite and emFuga == false then
+                emFuga = true
+                if root then
+                    root.CFrame = root.CFrame + Vector3.new(0, autoSafeHeight, 0)
+                end
+            end
+        else
+            emFuga = false
+        end
+    end
 -- ================= AUTO FARM =================
 
 if autoFarmEnabled then
@@ -1158,7 +1182,7 @@ Players.PlayerAdded:Connect(criarESP)
 local menuOpen = true
 local busy = false
 
-local OPEN_SIZE = UDim2.new(0,460,0,460)
+local OPEN_SIZE = UDim2.new(0,460,0,520)
 local CLOSED_SIZE = UDim2.new(0,0,0,0)
 
 local OPEN_TRANSP = 0.15
