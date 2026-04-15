@@ -4,29 +4,35 @@ local player = game.Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 
-local FILE_NAME = "bounty_tracker.txt"
+-- [[ MELHORIA ]] Novo nome de arquivo para o novo formato de dados
+local FILE_NAME = "bounty_tracker_v3.txt"
 
+-- [[ MELHORIA ]] Nova variável para o contador de kills
 local today = 0
+local killsToday = 0
 local lastChange = 0
 local lastBounty = 0
 local lastResetDay = os.date("%d")
 local isStabilizing = false
 
--- LOAD
+-- LOAD (com suporte para kills)
 pcall(function()
 	if isfile and isfile(FILE_NAME) then
 		local data = readfile(FILE_NAME)
-		local tdy, day = string.match(data, "(-?%d+)|(%d+)")
+		-- [[ MELHORIA ]] Padrão de busca atualizado para incluir kills
+		local tdy, kls, day = string.match(data, "(-?%d+)|(-?%d+)|(%d+)")
 		if tdy then today = tonumber(tdy) end
+		if kls then killsToday = tonumber(kls) end
 		if day then lastResetDay = tonumber(day) end
 	end
 end)
 
--- SAVE
+-- SAVE (com suporte para kills)
 local function saveData()
 	pcall(function()
 		if writefile then
-			writefile(FILE_NAME, today.."|"..os.date("%d"))
+			-- [[ MELHORIA ]] Salva o bounty E os kills
+			writefile(FILE_NAME, today.."|"..killsToday.."|"..os.date("%d"))
 		end
 	end)
 end
@@ -67,7 +73,7 @@ local function format(n)
 	return sign .. tostring(num):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
 end
 
--- ================= UI FINAL CLEAN =================
+-- ================= UI (sem mudanças visuais, apenas o texto será atualizado) =================
 local gui = Instance.new("ScreenGui", CoreGui)
 gui.Name = "BountyTrackerGUI"
 
@@ -111,66 +117,57 @@ lastText.Font = Enum.Font.Gotham
 lastText.TextSize = 13
 lastText.TextXAlignment = Enum.TextXAlignment.Center
 
--- =================================================================
--- << MELHORIA >> NOVO MOTOR DE ANIMAÇÃO COM "BOUNCE" (MOLA)
--- =================================================================
 
--- Variáveis de controle da animação
-local targetToday = today      -- O valor que queremos alcançar
-local displayToday = today     -- O valor que está sendo mostrado na tela
-local todayVelocity = 0        -- A "velocidade" da animação do número
+-- Motor de Animação (sem mudanças)
+local targetToday = today
+local displayToday = today
+local todayVelocity = 0
+local SPRING_TENSION = 0.1
+local SPRING_DAMPING = 0.82
 
--- Configurações da física da mola (ajuste para mudar o efeito)
-local SPRING_TENSION = 0.1   -- Quão "forte" a mola é. (Valores maiores = mais rápido)
-local SPRING_DAMPING = 0.82  -- Amortecimento. (Valores menores = mais "saltitante")
-
--- Loop de animação contínuo (roda a cada frame)
 RunService.RenderStepped:Connect(function(dt)
-    -- Calcula a diferença entre o alvo e o valor atual
     local force = targetToday - displayToday
-    
-    -- Se estivermos perto o suficiente e quase parados, trava no valor final para evitar tremer
     if math.abs(force) < 0.1 and math.abs(todayVelocity) < 0.1 then
         displayToday = targetToday
         todayVelocity = 0
     else
-        -- Aplica a física da mola para criar o efeito de "bounce"
         todayVelocity = (todayVelocity * SPRING_DAMPING) + (force * SPRING_TENSION)
-        displayToday += todayVelocity * dt * 60 -- Multiplica por dt para ser independente de FPS
+        displayToday += todayVelocity * dt * 60
     end
 
-    -- Atualiza o texto da UI a cada frame
     if today >= 0 then
-        todayText.TextColor3 = Color3.fromRGB(0,255,120) -- Verde
+        todayText.TextColor3 = Color3.fromRGB(0,255,120)
     else
-        todayText.TextColor3 = Color3.fromRGB(255,70,70) -- Vermelho
+        todayText.TextColor3 = Color3.fromRGB(255,70,70)
     end
     todayText.Text = "Hoje: " .. format(displayToday)
 end)
 
 
 -- =================================================================
--- LOOP DE LÓGICA PRINCIPAL (SEPARADO DA ANIMAÇÃO)
+-- LOOP DE LÓGICA PRINCIPAL (COM CONTAGEM DE KILLS)
 -- =================================================================
 
 task.spawn(function()
 	while task.wait(1) do
-		-- Pula se estiver estabilizando (respawn/teleporte)
 		if isStabilizing then
-			lastBounty = bountyStat.Value -- Mantém sincronizado
+			lastBounty = bountyStat.Value
 			continue 
 		end
 
 		local current = bountyStat.Value
 		local diff = current - lastBounty
 
-		-- Só conta se a mudança for razoável (evita bugs de reset)
 		if diff ~= 0 and math.abs(diff) < 500000 then
 			lastChange = diff
 			today += diff
 			
-			targetToday = today -- << MELHORIA >> Apenas atualiza o ALVO da animação
+			-- [[ MELHORIA ]] Se o bounty AUMENTOU, conta como uma kill
+			if diff > 0 then
+				killsToday = killsToday + 1
+			end
 			
+			targetToday = today
 			saveData()
 		end
 
@@ -179,17 +176,16 @@ task.spawn(function()
 		if currentDay ~= lastResetDay then
 			today = 0
 			lastChange = 0
+			killsToday = 0 -- << MELHORIA >> Zera os kills também
 			lastResetDay = currentDay
 			
-			targetToday = today -- << MELHORIA >> Atualiza o ALVO para zero
-			
+			targetToday = today
 			saveData()
 		end
 
-		-- Atualiza o texto "Último"
-		lastText.Text = "Último: " .. format(lastChange)
+		-- [[ MELHORIA ]] Atualiza o texto para incluir os kills
+		lastText.Text = "Último: " .. format(lastChange) .. " | Kills: " .. killsToday
 
-		-- Sincroniza o bounty para a próxima verificação
 		lastBounty = current
 	end
 end)
