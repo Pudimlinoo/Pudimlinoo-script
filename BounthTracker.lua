@@ -5,7 +5,7 @@ local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 
 -- [[ MELHORIA ]] Novo nome de arquivo para o novo formato de dados
-local FILE_NAME = "bounty_tracker_v3.txt"
+local FILE_NAME = "bounty_tracker_.txt"
 
 -- [[ MELHORIA ]] Nova variável para o contador de kills
 local today = 0
