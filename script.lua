@@ -2,9 +2,11 @@ local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local player = Players.LocalPlayer
 
+-- Nome EXCLUSIVO do seu Hub (Para não confundir com o Tracker)
 -- Nome EXCLUSIVO do seu Hub 
 local NOME_DO_HUB = "PudimHub_Main_Interface"
 
+-- 1. Remove APENAS o Hub se ele já estiver aberto
 -- Remove APENAS o Hub se ele já estiver aberto
 if player and player:FindFirstChild("PlayerGui") then
     if player.PlayerGui:FindFirstChild(NOME_DO_HUB) then
@@ -42,10 +44,10 @@ local Theme = {
 	Main = Color3.fromRGB(18,18,18),       -- fundo principal
 	Second = Color3.fromRGB(25,25,25),     -- fundo interno
 	Button = Color3.fromRGB(35,35,35),     -- botão neutro
-	
+
 	Red = Color3.fromRGB(200,40,40),       -- vermelho principal
 	DarkRed = Color3.fromRGB(140,25,25),   -- vermelho escuro
-	
+
 	Text = Color3.fromRGB(240,240,240),
 	Stroke = Color3.fromRGB(60,60,60)
 
@@ -72,53 +74,6 @@ end
 
 local function getClosestEnemy()
 
-
--- ================= TL ALT+2 =================
-local player = game.Players.LocalPlayer
-local mouse = player:GetMouse()
-local UIS = game:GetService("UserInputService")
-
--- Configurações
-local COOLDOWN_TIME = 0.01 -- 10ms
-local ALTURA_OFFSET = 3.5
-local emCooldown = false
-
--- Função principal de Teleporte
-local function performTeleport()
-    local character = player.Character
-    local root = character and character:FindFirstChild("HumanoidRootPart")
-    local hum = character and character:FindFirstChildOfClass("Humanoid")
-
-    -- Verifica se o player está vivo e se o mouse tem um alvo
-    if root and hum and hum.Health > 0 and mouse.Hit then
-        -- Mantém a rotação original para não bugar a câmera
-        local targetPos = mouse.Hit.Position + Vector3.new(0, ALTURA_OFFSET, 0)
-        root.CFrame = CFrame.new(targetPos) * root.CFrame.Rotation
-    end
-end
-
-UIS.InputBegan:Connect(function(input, gameProcessed)
-    -- No Blox Fruits, ignoramos o gameProcessed para garantir que funcione 
-    -- mesmo se o mouse estiver sobre algum elemento da UI básica.
-    
-    -- Verifica se o botão pressionado é o Mouse2 (Botão Direito)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        
-        -- Verifica se a tecla ALT (Esquerda ou Direita) está segurada
-        local altSegurado = UIS:IsKeyDown(Enum.KeyCode.LeftAlt) or UIS:IsKeyDown(Enum.KeyCode.RightAlt)
-        
-        if altSegurado and not emCooldown then
-            emCooldown = true
-            
-            performTeleport()
-            
-            -- Gerencia o cooldown de 10ms
-            task.delay(COOLDOWN_TIME, function()
-                emCooldown = false
-            end)
-        end
-    end
-end)
 -- ================= FAST ATTACK =================
 
 local VirtualUser = game:GetService("VirtualUser")
@@ -1005,7 +960,7 @@ if autoFarmEnabled then
 
 if npcRoot and hum and hum.Health > 0 then
 
-	
+
 
 	root.CFrame = CFrame.new(
 	npcRoot.Position + Vector3.new(0,farmHeight,farmDistance),
@@ -1342,7 +1297,7 @@ glowShadow.ZIndex = -1
 mobileBtn.MouseButton1Click:Connect(function()
 	if busy then return end
 	busy = true
-	
+
 	-- Efeito de clique Animado (Usa escala relativa para não bugar o tamanho menor)
 	TweenService:Create(btnVisual, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Size = UDim2.new(0.8, 0, 0.8, 0),
@@ -1359,7 +1314,7 @@ mobileBtn.MouseButton1Click:Connect(function()
 		tweenClose:Play()
 		TweenService:Create(btnStroke, TweenInfo.new(0.3), {Color = Color3.fromRGB(80, 80, 80)}):Play()
 		TweenService:Create(glowShadow, TweenInfo.new(0.3), {ImageTransparency = 0.8, ImageColor3 = Color3.fromRGB(0,0,0)}):Play()
-		
+
 		tweenClose.Completed:Wait()
 		frame.Visible = false
 		menuOpen = false
@@ -1368,7 +1323,7 @@ mobileBtn.MouseButton1Click:Connect(function()
 		frame.Visible = true
 		TweenService:Create(btnStroke, TweenInfo.new(0.3), {Color = Theme.Red}):Play()
 		TweenService:Create(glowShadow, TweenInfo.new(0.3), {ImageTransparency = 0.4, ImageColor3 = Theme.Red}):Play()
-		
+
 		tweenOpen:Play()
 		menuOpen = true
 	end
@@ -1384,7 +1339,7 @@ mobileBtn.InputBegan:Connect(function(input)
 		draggingBtn = true
 		dragStartBtn = input.Position
 		startPosBtn = mobileBtn.Position
-		
+
 		-- Botão "incha" de leve quando você segura para arrastar
 		TweenService:Create(btnVisual, TweenInfo.new(0.2), {Size = UDim2.new(1.15, 0, 1.15, 0)}):Play()
 	end
@@ -1409,7 +1364,7 @@ end)
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		draggingBtn = false
-		
+
 		-- Volta ao tamanho original ao soltar
 		TweenService:Create(btnVisual, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 1, 0)}):Play()
 	end
@@ -1517,7 +1472,7 @@ RunService.RenderStepped:Connect(function()
 
 	if move.Magnitude > 0 then
 		local dir = move.Unit
-	
+
 		local newPos = root.Position + (dir * speed)
 
 		root.CFrame = CFrame.new(
@@ -1525,7 +1480,7 @@ RunService.RenderStepped:Connect(function()
 			newPos + cam.CFrame.LookVector
 		)
 	else
-		
+
 		root.CFrame = CFrame.new(
 			root.Position,
 			root.Position + cam.CFrame.LookVector
