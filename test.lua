@@ -83,6 +83,7 @@ input.Position = UDim2.new(0.1,0,0,95)
 input.Size = UDim2.new(0.8,0,0,40)
 input.BackgroundColor3 = Color3.fromRGB(30,30,30)
 input.TextColor3 = Color3.fromRGB(255,255,255)
+input.Text = "" -- << CORREÇÃO AQUI
 input.PlaceholderText = "Digite a key..."
 input.Font = Enum.Font.Gotham
 input.TextSize = 16
@@ -142,7 +143,6 @@ end)
 
 -- BLOQUEIO DO SCRIPT
 repeat task.wait() until liberado
--- ================= FIM SISTEMA DE KEY =================
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -1640,4 +1640,3 @@ player.CharacterAdded:Connect(function(char)
 	end
 	flying = false
 end)
-
