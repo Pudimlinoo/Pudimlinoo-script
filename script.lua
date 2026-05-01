@@ -1,11 +1,157 @@
+-- ================= SISTEMA DE KEY =================
+local KEY_CORRETA = "" -- <<< MUDA A KEY AQUI
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
+
+-- GUI
+local keyGui = Instance.new("ScreenGui", player.PlayerGui)
+keyGui.Name = "KeySystem"
+keyGui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", keyGui)
+frame.Size = UDim2.new(0,420,0,260)
+frame.Position = UDim2.new(0.5,0,0.5,0)
+frame.AnchorPoint = Vector2.new(0.5,0.5)
+frame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+frame.BackgroundTransparency = 0.1
+frame.BorderSizePixel = 0
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,16)
+
+-- sombra
+local shadow = Instance.new("ImageLabel", frame)
+shadow.AnchorPoint = Vector2.new(0.5,0.5)
+shadow.Position = UDim2.new(0.5,0,0.5,0)
+shadow.Size = UDim2.new(1,40,1,40)
+shadow.Image = "rbxassetid://1316045217"
+shadow.ImageTransparency = 0.6
+shadow.BackgroundTransparency = 1
+shadow.ZIndex = 0
+
+-- titulo
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1,0,0,38)
+title.BackgroundColor3 = Color3.fromRGB(18,18,18)
+title.BackgroundTransparency = 0.2
+title.Text = "🔐 PudimLinoo Key System"
+title.TextColor3 = Color3.fromRGB(235,235,235)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+Instance.new("UICorner", title).CornerRadius = UDim.new(0,16)
+
+-- drag
+local dragging, dragStart, startPos
+title.InputBegan:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = i.Position
+		startPos = frame.Position
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(i)
+	if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+		local delta = i.Position - dragStart
+		frame.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + delta.X,
+			startPos.Y.Scale, startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+title.InputEnded:Connect(function(i)
+	if i.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = false
+	end
+end)
+
+-- texto
+local info = Instance.new("TextLabel", frame)
+info.Position = UDim2.new(0,0,0,55)
+info.Size = UDim2.new(1,0,0,30)
+info.BackgroundTransparency = 1
+info.Text = "Digite a key para liberar o menu"
+info.TextColor3 = Color3.fromRGB(180,180,180)
+info.Font = Enum.Font.Gotham
+info.TextSize = 14
+
+-- input
+local input = Instance.new("TextBox", frame)
+input.Position = UDim2.new(0.1,0,0,95)
+input.Size = UDim2.new(0.8,0,0,40)
+input.BackgroundColor3 = Color3.fromRGB(30,30,30)
+input.TextColor3 = Color3.fromRGB(255,255,255)
+input.Text = "" -- << CORREÇÃO AQUI
+input.PlaceholderText = "Digite a key..."
+input.Font = Enum.Font.Gotham
+input.TextSize = 16
+input.ClearTextOnFocus = false
+Instance.new("UICorner", input).CornerRadius = UDim.new(0,10)
+
+-- botão
+local btn = Instance.new("TextButton", frame)
+btn.Position = UDim2.new(0.1,0,0,145)
+btn.Size = UDim2.new(0.8,0,0,42)
+btn.BackgroundColor3 = Color3.fromRGB(0,120,180)
+btn.Text = "LIBERAR"
+btn.TextColor3 = Color3.new(1,1,1)
+btn.Font = Enum.Font.GothamBold
+btn.TextSize = 18
+Instance.new("UICorner", btn).CornerRadius = UDim.new(0,12)
+
+-- status
+local status = Instance.new("TextLabel", frame)
+status.Position = UDim2.new(0,0,0,200)
+status.Size = UDim2.new(1,0,0,30)
+status.BackgroundTransparency = 1
+status.Text = ""
+status.TextColor3 = Color3.fromRGB(255,80,80)
+status.Font = Enum.Font.GothamBold
+status.TextSize = 14
+
+-- animação entrada
+frame.Size = UDim2.new(0,0,0,0)
+TweenService:Create(frame, TweenInfo.new(0.4, Enum.EasingStyle.Back), {
+	Size = UDim2.new(0,420,0,260)
+}):Play()
+
+-- lógica
+local liberado = false
+
+btn.MouseButton1Click:Connect(function()
+	if input.Text == KEY_CORRETA then
+		status.TextColor3 = Color3.fromRGB(80,255,120)
+		status.Text = "✅ Key correta! Liberando..."
+		liberado = true
+
+		TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+			Size = UDim2.new(0,0,0,0)
+		}):Play()
+
+		task.wait(0.35)
+		keyGui:Destroy()
+	else
+		status.TextColor3 = Color3.fromRGB(255,80,80)
+		status.Text = "❌ Key incorreta!"
+		btn.BackgroundColor3 = Color3.fromRGB(160,40,40)
+		task.wait(0.2)
+		btn.BackgroundColor3 = Color3.fromRGB(0,120,180)
+	end
+end)
+
+-- BLOQUEIO DO SCRIPT
+repeat task.wait() until liberado
+
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local player = Players.LocalPlayer
 
--- Nome EXCLUSIVO do seu Hub (Para não confundir com o Tracker)
+-- Nome EXCLUSIVO do seu Hub 
 local NOME_DO_HUB = "PudimHub_Main_Interface"
 
--- 1. Remove APENAS o Hub se ele já estiver aberto
+-- Remove APENAS o Hub se ele já estiver aberto
 if player and player:FindFirstChild("PlayerGui") then
     if player.PlayerGui:FindFirstChild(NOME_DO_HUB) then
         player.PlayerGui[NOME_DO_HUB]:Destroy()
