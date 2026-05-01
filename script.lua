@@ -1496,3 +1496,36 @@ player.CharacterAdded:Connect(function(char)
 	end
 	flying = false
 end)
+-- ================= TELEPORTE TECLA B =================
+local emCooldownTP = false
+local ALTURA_TELEPORT = 3.5
+
+UserInputService.InputBegan:Connect(function(input, gp)
+    -- Se estiver digitando no chat ou interagindo com a UI, não teleporta
+    if gp then return end
+
+    -- Verifica se a tecla pressionada é o B
+    if input.KeyCode == Enum.KeyCode.B then
+        local char = player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+        -- Só teleporta se estiver vivo e não estiver em cooldown
+        if root and hum and hum.Health > 0 and not emCooldownTP then
+            local mousePos = player:GetMouse().Hit
+            
+            if mousePos then
+                emCooldownTP = true
+                
+                -- Executa o teleporte para a posição do cursor
+                -- Mantém a rotação original do corpo para não bugar a visão
+                root.CFrame = CFrame.new(mousePos.Position + Vector3.new(0, ALTURA_TELEPORT, 0)) * root.CFrame.Rotation
+                
+                -- Cooldown ultra rápido de 10ms (0.01 segundos)
+                task.delay(0.01, function()
+                    emCooldownTP = false
+                end)
+            end
+        end
+    end
+end)
