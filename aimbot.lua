@@ -1,8 +1,3 @@
--- ================================================================= --
---   PudimLinoo Hub — Aimbot + ESP (Aprimorado)                      --
---   Teclas: G = Menu | H = ESP Toggle                              --
--- ================================================================= --
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -13,10 +8,8 @@ local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
--- Nome EXCLUSIVO do seu Hub (Para não confundir com outros scripts)
 local NOME_DO_HUB = "PudimHub_AimbotESP_Only"
 
--- Remove Hub antigo se já existir
 if player and player:FindFirstChild("PlayerGui") then
     if player.PlayerGui:FindFirstChild(NOME_DO_HUB) then
         player.PlayerGui[NOME_DO_HUB]:Destroy()
@@ -418,7 +411,7 @@ local function getTarget()
     return bestPart
 end
 
--- Círculo de FOV (depende do 'Drawing' do executor)
+-- Círculo de FOV
 local fovCircle = Drawing.new("Circle")
 fovCircle.Thickness = 2
 fovCircle.NumSides = 80
