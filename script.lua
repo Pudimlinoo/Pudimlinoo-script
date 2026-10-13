@@ -107,7 +107,7 @@ for _,v in pairs(enemiesFolder:GetChildren()) do
 end
 
 -- Estado de interface e registro dos controles (sem ativar funções ao carregar).
-local HUD = {sliders = {}, jump = 60, scale = 100, status = true, alive = true, connections = {}, collisions = setmetatable({}, {__mode = "k"}), espLoops = {}}
+local HUD = {toggles = {}, sliders = {}, jump = 60, scale = 100, status = true, alive = true, connections = {}, collisions = setmetatable({}, {__mode = "k"}), espLoops = {}}
 function HUD.connect(signal, callback)
     local connection = signal:Connect(function(...)
         if HUD.alive then callback(...) end
@@ -444,12 +444,26 @@ local function criarBotaoToggle(txt, y, p, cb)
     circle.BackgroundColor3 = Theme.Text
     roundUI(circle, 8)
     local state = false
-    row.Activated:Connect(function()
-        state = not state
-        TweenService:Create(toggle, TweenInfo.new(0.15), {BackgroundColor3 = state and Theme.Red or Color3.fromRGB(55,18,25)}):Play()
-        TweenService:Create(circle, TweenInfo.new(0.15), {Position = UDim2.fromOffset(state and 21 or 3, 3)}):Play()
+    local colorTween, positionTween
+    local function setState(value, immediate)
+        state = value == true
+        if colorTween then colorTween:Cancel() end
+        if positionTween then positionTween:Cancel() end
+        local color = state and Theme.Red or Color3.fromRGB(55,18,25)
+        local position = UDim2.fromOffset(state and 21 or 3, 3)
+        if immediate then
+            toggle.BackgroundColor3 = color
+            circle.Position = position
+        else
+            colorTween = TweenService:Create(toggle, TweenInfo.new(0.15), {BackgroundColor3 = color})
+            positionTween = TweenService:Create(circle, TweenInfo.new(0.15), {Position = position})
+            colorTween:Play()
+            positionTween:Play()
+        end
         cb(state)
-    end)
+    end
+    table.insert(HUD.toggles, {set = setState, default = false})
+    row.Activated:Connect(function() setState(not state, false) end)
 end
 
 local function criarSlider(txt, min, max, init, y, p, cb)
@@ -607,6 +621,7 @@ criarSlider("RAIO DE BUSCA NPC",100,3000,800,0,tabFarm,function(v) HUD.farmRadiu
 criarBotaoToggle("EQUIPAR MELEE / ESPADA",0,tabFarm,function(v) HUD.autoEquip = v end)
 do
     local filter = Instance.new("TextBox", tabFarm)
+    HUD.farmFilterInput = filter
     filter.Size = UDim2.new(1,0,0,40)
     filter.BackgroundColor3 = Theme.Second
     filter.TextColor3 = Theme.Text
@@ -815,6 +830,7 @@ rejoin.TextSize=18
 Instance.new("UICorner",rejoin)
 
 rejoin.MouseButton1Click:Connect(function()
+    if HUD.serverBusy or HUD.seaBusy then return end
 	local TeleportService = game:GetService("TeleportService")
 	local Players = game:GetService("Players")
 
@@ -862,45 +878,75 @@ end)
 -- ================= TELEPORT =================
 -- Seleção manual: nenhum mar escolhido ao abrir.
 HUD.currentSea = nil
--- Coordenadas: Sea 2 preservado da versão anterior.
--- Sea 1: https://github.com/MUXHUB169/BloxFruits-Auto-farm
--- Sea 3: https://github.com/GooD1020/sazx-hub
+-- Catalogo v018: ilhas fixas, acessos e eventos. Fontes em PudimHub_v018_notas.md.
 HUD.islandsBySea = {
     [1] = {
-        {nome="Starter Island", cf=CFrame.new(1071.2832,16.3085976,1426.86792)},
-        {nome="Marine Starter", cf=CFrame.new(-2573.3374,6.88881969,2046.99817)},
-        {nome="Middle Town", cf=CFrame.new(-655.824158,7.88708115,1436.67908)},
-        {nome="Jungle", cf=CFrame.new(-1249.77222,11.8870859,341.356476)},
-        {nome="Pirate Village", cf=CFrame.new(-1122.34998,4.78708982,3855.91992)},
-        {nome="Desert", cf=CFrame.new(1094.14587,6.47350502,4192.88721)},
-        {nome="Frozen Village", cf=CFrame.new(1198.00928,27.0074959,-1211.73376)},
-        {nome="Marine Fortress", cf=CFrame.new(-4505.375,20.687294,4260.55908)},
-        {nome="Colosseum", cf=CFrame.new(-1428.35474,7.38933945,-3014.37305)},
-        {nome="Skylands", cf=CFrame.new(-4970.21875,717.707275,-2622.35449)},
-        {nome="Prison", cf=CFrame.new(4854.16455,5.68742752,740.194641)},
-        {nome="Magma Village", cf=CFrame.new(-5231.75879,8.61593437,8467.87695)},
-        {nome="Fountain City", cf=CFrame.new(5132.7124,4.53632832,4037.8562)},
+        {nome="Pirate Starter", cf=CFrame.new(1071.2832,16.3085976,1426.86792), aliases={"Pirate Starter"}},
+        {nome="Marine Starter", cf=CFrame.new(-2573.3374,6.88881969,2046.99817), aliases={"Marine Starter"}},
+        {nome="Middle Town", cf=CFrame.new(-655.824158,7.88708115,1436.67908), aliases={"Middle Town"}},
+        {nome="Jungle", cf=CFrame.new(-1249.77222,11.8870859,341.356476), aliases={"Jungle"}},
+        {nome="Pirate Village", cf=CFrame.new(-1122.34998,4.78708982,3855.91992), aliases={"Pirate Village"}},
+        {nome="Desert", cf=CFrame.new(1094.14587,6.47350502,4192.88721), aliases={"Desert"}},
+        {nome="Frozen Village", cf=CFrame.new(1198.00928,27.0074959,-1211.73376), aliases={"Frozen Village"}},
+        {nome="Marine Fortress", cf=CFrame.new(-4505.375,20.687294,4260.55908), aliases={"Marine Fortress"}},
+        {nome="Colosseum", cf=CFrame.new(-1428.35474,7.38933945,-3014.37305), aliases={"Colosseum"}},
+        {nome="Lower Skylands", cf=CFrame.new(-4970.21875,717.707275,-2622.35449), aliases={"Lower Skylands"}},
+        {nome="Prison", cf=CFrame.new(4854.16455,5.68742752,740.194641), aliases={"Prison"}},
+        {nome="Magma Village", cf=CFrame.new(-5231.75879,8.61593437,8467.87695), aliases={"Magma Village"}},
+        {nome="Fountain City", cf=CFrame.new(5132.7124,4.53632832,4037.8562), aliases={"Fountain City"}},
+        {nome="Upper Skylands", cf=CFrame.new(-7894.62,5547.14,-380.29), portal=Vector3.new(-7894.62,5547.14,-380.29), aliases={"Upper Skylands"}},
+        {nome="Underwater City", cf=CFrame.new(61163.85,11.68,1819.78), portal=Vector3.new(61163.85,11.68,1819.78), aliases={"Underwater City"}},
+        {nome="Jean-Luc Island / Mob Island", cf=CFrame.new(-2850.2,7.39,5354.99), aliases={"Jean-Luc Island","Mob Island"}},
+        {nome="Skylands / Gods Guard", cf=CFrame.new(-4813.02,903.71,-1912.69), portal=Vector3.new(-4607.82,872.54,-1667.56), aliases={"Skylands / Gods Guard"}},
+        {nome="North Pole", event=true, aliases={"North Pole","Christmas Island"}},
     },
     [2] = {
-        {nome="Café", cf=CFrame.new(-380,80,300)},
-        {nome="Mansão", cf=CFrame.new(-390,332,715)},
-        {nome="Green Zone", cf=CFrame.new(-2221,80,-2704)},
-        {nome="Graveyard", cf=CFrame.new(-5429,55,-745)},
-        {nome="Cursed Ship", cf=CFrame.new(-6528,90,-162)},
-        {nome="Snow Mountain", cf=CFrame.new(950,440,-5181)},
-        {nome="Hot and Cold", cf=CFrame.new(-5701,15,-5003)},
-        {nome="Ice Castle", cf=CFrame.new(5589,35,-6354)},
-        {nome="Forgotten Island", cf=CFrame.new(-3050,255,-10170)},
+        {nome="Café", cf=CFrame.new(-380,80,300), aliases={"Café"}},
+        {nome="Mansão", cf=CFrame.new(-390,332,715), aliases={"Mansão"}},
+        {nome="Green Zone", cf=CFrame.new(-2221,80,-2704), aliases={"Green Zone"}},
+        {nome="Graveyard", cf=CFrame.new(-5429,55,-745), aliases={"Graveyard"}},
+        {nome="Cursed Ship / exterior", cf=CFrame.new(-6528,90,-162), aliases={"Cursed Ship / exterior"}},
+        {nome="Snow Mountain", cf=CFrame.new(950,440,-5181), aliases={"Snow Mountain"}},
+        {nome="Hot and Cold", cf=CFrame.new(-5701,15,-5003), aliases={"Hot and Cold"}},
+        {nome="Ice Castle", cf=CFrame.new(5589,35,-6354), aliases={"Ice Castle"}},
+        {nome="Forgotten Island", cf=CFrame.new(-3050,255,-10170), aliases={"Forgotten Island"}},
+        {nome="Cursed Ship / interior", cf=CFrame.new(923.21,126.98,32852.83), portal=Vector3.new(923.21,126.98,32852.83), hint="Entrada depende do acesso liberado pelo jogo.", aliases={"Cursed Ship"}},
+        {nome="Kingdom of Rose", cf=CFrame.new(-394.98,118.5,1245.84), aliases={"Kingdom of Rose"}},
+        {nome="Kingdom of Rose / porto", cf=CFrame.new(82.95,18.07,2834.99), aliases={"Kingdom of Rose / porto"}},
+        {nome="Factory", cf=CFrame.new(430.43,210.02,-432.5), aliases={"Factory"}},
+        {nome="Colosseum", cf=CFrame.new(-1836.58,44.59,1360.31), aliases={"Colosseum"}},
+        {nome="Dark Arena", cf=CFrame.new(3780.03,22.65,-3498.59), aliases={"Dark Arena"}},
+        {nome="Remote Island / Usoap", cf=CFrame.new(4748.79,8.35,2849.58), aliases={"Remote Island","Remote","Usoap Island","Ussop Island"}},
+        {nome="Cave Island", hint="Sem coordenada fixa confirmada. Aproxime-se da ilha a leste do porto e tente localizar novamente.", aliases={"Cave Island","CaveIsland"}},
+        {nome="Indra Island", cf=CFrame.new(-26880.93,22.85,473.19), hint="Area da missao de acesso ao Sea 3; chegar nao inicia a missao.", aliases={"Indra Island"}},
+        {nome="North Pole", event=true, aliases={"North Pole","Christmas Island"}},
     },
     [3] = {
-        {nome="Port Town", cf=CFrame.new(-610.309692,57.8323097,6436.33594)},
-        {nome="Hydra Island", cf=CFrame.new(5229.99561,603.916565,345.154022)},
-        {nome="Great Tree", cf=CFrame.new(2174.94873,28.7312393,-6728.83154)},
-        {nome="Castle on the Sea", cf=CFrame.new(-5477.62842,313.794739,-2808.4585)},
-        {nome="Floating Turtle", cf=CFrame.new(-10919.2998,331.788452,-8637.57227)},
-        {nome="Mansão", cf=CFrame.new(-12553.8125,332.403961,-7621.91748)},
-        {nome="Peanut Island", cf=CFrame.new(-2142,48,-10031)},
-        {nome="Ice Cream Island", cf=CFrame.new(-949,59,-10907)},
+        {nome="Port Town", cf=CFrame.new(-610.309692,57.8323097,6436.33594), aliases={"Port Town"}},
+        {nome="Hydra Island", cf=CFrame.new(5229.99561,603.916565,345.154022), aliases={"Hydra Island"}},
+        {nome="Great Tree", cf=CFrame.new(2174.94873,28.7312393,-6728.83154), aliases={"Great Tree"}},
+        {nome="Castle on the Sea", cf=CFrame.new(-5477.62842,313.794739,-2808.4585), aliases={"Castle on the Sea"}},
+        {nome="Floating Turtle", cf=CFrame.new(-10919.2998,331.788452,-8637.57227), aliases={"Floating Turtle"}},
+        {nome="Mansão", cf=CFrame.new(-12553.8125,332.403961,-7621.91748), aliases={"Mansão"}},
+        {nome="Peanut Land", cf=CFrame.new(-2142,48,-10031), aliases={"Peanut Land"}},
+        {nome="Ice Cream Land", cf=CFrame.new(-949,59,-10907), aliases={"Ice Cream Land"}},
+        {nome="Haunted Castle", cf=CFrame.new(-9515.37,164.01,5786.06), aliases={"Haunted Castle"}},
+        {nome="Cake Land", cf=CFrame.new(-2021.32,37.8,-12028.73), aliases={"Cake Land","Cake Island","CakeLoaf"}},
+        {nome="Chocolate Land", cf=CFrame.new(233.23,29.88,-12201.23), aliases={"Chocolate Land","Chocolate Island","Cocoa Island"}},
+        {nome="Candy Cane Land", cf=CFrame.new(-1150.04,20.38,-14446.33), aliases={"Candy Cane Land","Candy Island","Candy Cane Island"}},
+        {nome="Tiki Outpost", cf=CFrame.new(-16547.75,61.14,-173.41), aliases={"Tiki Outpost"}},
+        {nome="Submerged Island / acesso", fallback=CFrame.new(-16547.75,61.14,-173.41), npc="Submarine Worker", hint="Em Tiki, fale com Submarine Worker no Sub Port 01. O jogo exige derrotar Tyrant of the Skies.", aliases={"Submerged Island / acesso"}},
+        {nome="Temple of Time", cf=CFrame.new(28286.36,14895.3,102.62), portal=Vector3.new(28286.36,14895.3,102.62), hint="O servidor valida os requisitos do templo.", aliases={"Temple of Time"}},
+        {nome="Hydra / Friendly Arena", cf=CFrame.new(5220.29,72.82,-1450.86), aliases={"Hydra / Friendly Arena"}},
+        {nome="Hydra / Secret Temple", cf=CFrame.new(5217.36,6.57,1100.88), aliases={"Hydra / Secret Temple"}},
+        {nome="Dimensional Shift", hint="Depende do evento de Cake Prince/Dough King e do portal do jogo.", event=true, aliases={"Dimensional Shift"}},
+        {nome="Mirage Island", event=true, aliases={"Mirage Island","MysticIsland"}},
+        {nome="Kitsune Island", event=true, aliases={"Kitsune Island","KitsuneIsland"}},
+        {nome="Prehistoric Island", event=true, aliases={"Prehistoric Island","PrehistoricIsland"}},
+        {nome="Frozen Dimension", event=true, aliases={"Frozen Dimension","FrozenDimension"}},
+        {nome="Treasure Island", event=true, aliases={"Treasure Island","TreasureIsland"}},
+        {nome="Haunted Shipwreck", event=true, aliases={"Haunted Shipwreck","HauntedShipwreck"}},
+        {nome="North Pole", event=true, aliases={"North Pole","Christmas Island"}},
     },
 }
 
@@ -917,7 +963,9 @@ travelStatus.TextSize = 12
 travelStatus.Font = Enum.Font.GothamMedium
 travelStatus.TextWrapped = true
 travelStatus.Text = "Selecione abaixo o Sea em que você está para carregar as ilhas."
+HUD.travelToken = 0
 local function CancelTeleport(message)
+    HUD.travelToken = HUD.travelToken + 1
     if travelConnection then travelConnection:Disconnect(); travelConnection = nil end
     local oldTween = currentTween
     currentTween = nil
@@ -926,9 +974,15 @@ local function CancelTeleport(message)
     if oldTween then oldTween:Cancel() end
     if message then travelStatus.Text = message end
 end
-local function TweenTeleport(cf)
-    if HUD.seaBusy then travelStatus.Text = "Aguarde a troca de Sea."; return end
-    if not HUD.currentSea then travelStatus.Text = "Escolha primeiro o Sea em que você está."; return end
+local function TweenTeleport(destination)
+    if HUD.seaBusy or HUD.serverBusy then travelStatus.Text = "Aguarde a troca de servidor/Sea."; return end
+    if not HUD.currentSea then travelStatus.Text = "Escolha primeiro o Sea em que esta."; return end
+    local placeIds = {[1]=2753915549,[2]=4442272183,[3]=7449423635}
+    -- Apenas valida o clique; nao escolhe nem carrega Sea automaticamente.
+    if game.PlaceId ~= placeIds[HUD.currentSea] then
+        travelStatus.Text = "A lista escolhida pertence a outro Sea. Selecione seu Sea atual."
+        return
+    end
     CancelTeleport()
     local character = player.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -936,21 +990,141 @@ local function TweenTeleport(cf)
     if not root or not hum or hum.Health <= 0 then travelStatus.Text = "Aguarde o personagem renascer."; return end
     if HUD.stopFly then HUD.stopFly() end
     if root.Anchored then travelStatus.Text = "Personagem preso. Aguarde antes de viajar."; return end
-    HUD.farmPaused = true
-    HUD.travelActive = true
+    HUD.farmPaused, HUD.travelActive = true, true
     travelRoot, travelHumanoid = root, hum
-    local duration = math.max(0.1, (root.Position - cf.Position).Magnitude / HUD.travelSpeed)
-    travelStatus.Text = string.format("Viajando / %.0f s estimados / farm pausado",duration)
-    local tween = TweenService:Create(root,TweenInfo.new(duration,Enum.EasingStyle.Linear),{CFrame=cf})
-    currentTween = tween
-    travelConnection = tween.Completed:Connect(function(state)
-        if currentTween ~= tween then return end
-        local arrived = state == Enum.PlaybackState.Completed and root.Parent and (root.Position-cf.Position).Magnitude < 12
-        CancelTeleport(arrived and "Percurso concluído. Retome o farm quando quiser." or "Percurso interrompido. Confira a posição antes de tentar novamente.")
-        HUD.manualHold = os.clock() + 0.5
+    local token = HUD.travelToken
+    local function valid()
+        return HUD.alive and HUD.travelActive and token == HUD.travelToken and player.Character == character
+            and root.Parent == character and hum.Health > 0
+    end
+    local function normalize(name) return string.lower(name):gsub("[^%w]", "") end
+    local function findNamed(folder, names)
+        if not folder then return nil end
+        local namesSet = {}
+        for _, name in ipairs(names) do namesSet[normalize(name)] = true end
+        for _, item in ipairs(folder:GetChildren()) do
+            if namesSet[normalize(item.Name)] then return item end
+        end
+    end
+    local function objectPosition(object)
+        if not object then return nil end
+        if object:IsA("BasePart") then return object.Position end
+        if object:IsA("Model") then return object:GetPivot().Position end
+    end
+    local function groundAt(position, high)
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        local ignore = {character}
+        for _, name in ipairs({"Characters", "Enemies", "NPCs", "_WorldOrigin", "PudimHub_FlightOrigin"}) do
+            local object = workspace:FindFirstChild(name)
+            if object then table.insert(ignore, object) end
+        end
+        params.FilterDescendantsInstances = ignore
+        params.IgnoreWater = false
+        params.RespectCanCollide = true
+        local height = high and 600 or 40
+        for _, offset in ipairs({Vector3.zero,Vector3.new(30,0,0),Vector3.new(-30,0,0),Vector3.new(0,0,30),Vector3.new(0,0,-30)}) do
+            local hit = workspace:Raycast(position + offset + Vector3.new(0,height,0),Vector3.new(0,-height-250,0),params)
+            if hit and hit.Material ~= Enum.Material.Water and hit.Normal.Y > 0.6 then
+                return CFrame.new(hit.Position + Vector3.new(0,hum.HipHeight + root.Size.Y/2 + 1,0))
+            end
+        end
+    end
+    local function entrance(position)
+        if (root.Position-position).Magnitude < 1000 then return true end
+        travelStatus.Text = "Solicitando entrada de " .. destination.nome .. "..."
+        -- Uma solicitacao por etapa; sem repeticao ilimitada ou reset do personagem.
+        local finished, success = false, false
+        task.spawn(function()
+            if not valid() then return end
+            success = pcall(function() CommF:InvokeServer("requestEntrance", position) end)
+            finished = true
+        end)
+        local deadline = os.clock() + 8
+        repeat task.wait(0.1)
+        until not valid() or (root.Position-position).Magnitude < 1000 or os.clock() >= deadline
+        if not valid() then return false end
+        if (root.Position-position).Magnitude >= 1000 then
+            CancelTeleport(finished and not success and "Falha na entrada especial." or "Entrada nao confirmada. Use o portal/NPC do jogo e confira os requisitos.")
+            return false
+        end
+        return true
+    end
+    task.spawn(function()
+        local ok, err = pcall(function()
+            local point, observed, livePosition = destination.cf, nil, nil
+            local needsGround = not destination.cf and not destination.npc
+            if destination.npc then
+                local npc = findNamed(workspace:FindFirstChild("NPCs"), {destination.npc})
+                if npc then
+                    local npcRoot = npc:FindFirstChild("HumanoidRootPart") or (npc:IsA("Model") and npc.PrimaryPart)
+                    if npcRoot and (not destination.fallback or (npcRoot.Position-destination.fallback.Position).Magnitude < 4000) then
+                        point = npcRoot.CFrame * CFrame.new(0,0,5)
+                    end
+                end
+                point = point or destination.fallback
+            elseif not destination.portal then
+                local origin = workspace:FindFirstChild("_WorldOrigin")
+                observed = findNamed(origin and origin:FindFirstChild("Locations"), destination.aliases)
+                    or findNamed(workspace:FindFirstChild("Map"), destination.aliases)
+                livePosition = objectPosition(observed)
+                if livePosition then
+                    -- Marcadores sao centros de regioes, nao pisos.
+                    if not point or (point.Position-livePosition).Magnitude > 1500 then
+                        point = CFrame.new(livePosition)
+                        needsGround = true
+                    end
+                end
+            end
+            if not point then
+                CancelTeleport(destination.hint or (destination.nome .. ": nao localizado no mapa carregado. O evento pode estar ausente ou longe demais."))
+                return
+            end
+            if HUD.currentSea == 1 and root.Position.X > 50000 and point.Position.X < 50000 then
+                if not entrance(Vector3.new(3865,5,-1926)) then return end
+            elseif HUD.currentSea == 2 and root.Position.Z > 20000 and point.Position.Z < 20000 then
+                if not entrance(Vector3.new(-6508.56,89.03,-132.84)) then return end
+            end
+            if destination.portal and not entrance(destination.portal) then return end
+            if not valid() then return end
+            pcall(function() player:RequestStreamAroundAsync(point.Position, 2) end)
+            if not valid() then return end
+            local grounded = groundAt(point.Position, needsGround)
+            if grounded then point = grounded
+            elseif needsGround then
+                CancelTeleport("Local encontrado, mas sem piso carregado para pousar. Aproxime-se e tente novamente.")
+                return
+            end
+            local duration = math.max(0.1,(root.Position-point.Position).Magnitude/HUD.travelSpeed)
+            if duration > 180 then CancelTeleport("Destino longe demais para viagem direta. Use barco/portal para se aproximar."); return end
+            travelStatus.Text = string.format("%s / %.0f s / farm pausado",destination.nome,duration)
+            local tween = TweenService:Create(root,TweenInfo.new(duration,Enum.EasingStyle.Linear),{CFrame=point})
+            currentTween = tween
+            local completed = false
+            travelConnection = tween.Completed:Connect(function(state) completed = state == Enum.PlaybackState.Completed end)
+            tween:Play()
+            local limit = os.clock()+duration+4
+            repeat
+                task.wait(0.15)
+                if not valid() then return end
+                if destination.event and observed and not observed:IsDescendantOf(workspace) then
+                    CancelTeleport("Evento deixou de estar carregado durante a viagem."); return
+                end
+            until not valid() or completed or os.clock() >= limit
+            if not valid() then return end
+            if not completed then CancelTeleport("Percurso interrompido ou tempo limite."); return end
+            travelStatus.Text = "Conferindo chegada: " .. destination.nome
+            task.wait(1)
+            if not valid() then return end
+            local arrived = (root.Position-point.Position).Magnitude < 40
+            CancelTeleport(arrived and (destination.hint or ("Chegada local conferida: " .. destination.nome .. ". Retome o farm quando quiser."))
+                or "Posicao corrigida pelo jogo ou pouso nao confirmado. Confira o destino antes de tentar novamente.")
+            HUD.manualHold = os.clock()+0.5
+        end)
+        if not ok and valid() then CancelTeleport("Viagem interrompida: " .. tostring(err)) end
     end)
-    tween:Play()
 end
+
 criarSlider("Velocidade da viagem",50,350,250,0,tabTeleport,function(v) HUD.travelSpeed = v end)
 HUD.connect(RunService.Heartbeat,function()
     if HUD.travelActive and (not travelRoot or not travelRoot.Parent or not travelHumanoid or travelHumanoid.Health <= 0 or player.Character ~= travelRoot.Parent) then
@@ -967,18 +1141,68 @@ end)
 -- ================= SELETOR MANUAL DE SEA =================
 do
     local selectedLabel = Instance.new("TextLabel",tabTeleport)
-    selectedLabel.Size = UDim2.new(1,0,0,46)
+    selectedLabel.Size = UDim2.new(1,0,0,54)
     selectedLabel.BackgroundTransparency = 1
     selectedLabel.TextColor3 = Theme.Text
     selectedLabel.Font = Enum.Font.GothamMedium
     selectedLabel.TextSize = 12
     selectedLabel.TextWrapped = true
-    selectedLabel.Text = "Em qual Sea você está? Escolha para mostrar as ilhas."
+    selectedLabel.Text = "Escolha seu Sea. Eventos dependem do mapa carregado; acessos podem exigir NPC/portal."
     local selector = Instance.new("Frame",tabTeleport)
     selector.Size = UDim2.new(1,0,0,40)
     selector.BackgroundTransparency = 1
     local buttons = {}
+    local search = Instance.new("TextBox",tabTeleport)
+    search.Size = UDim2.new(1,0,0,36)
+    search.BackgroundColor3 = Theme.Second
+    search.TextColor3 = Theme.Text
+    search.PlaceholderText = "Buscar ilha nesta lista..."
+    search.PlaceholderColor3 = Color3.fromRGB(170,150,160)
+    search.Font = Enum.Font.Gotham
+    search.TextSize = 13
+    search.Text = ""
+    search.ClearTextOnFocus = false
+    roundUI(search)
+    local list = Instance.new("ScrollingFrame",tabTeleport)
+    list.Size = UDim2.new(1,0,0,0)
+    list.BackgroundTransparency = 1
+    list.BorderSizePixel = 0
+    list.ScrollBarThickness = 5
+    list.ScrollBarImageColor3 = Theme.Red
+    list.ScrollingDirection = Enum.ScrollingDirection.Y
+    list.CanvasSize = UDim2.new()
+    local function rebuild()
+        for _, child in ipairs(list:GetChildren()) do child:Destroy() end
+        local entries = HUD.islandsBySea[HUD.currentSea] or {}
+        local query = string.lower(search.Text):match("^%s*(.-)%s*$")
+        local count = 0
+        for _, island in ipairs(entries) do
+            local keywords = island.nome .. " " .. table.concat(island.aliases or {}, " ")
+            if query == "" or string.find(string.lower(keywords),query,1,true) then
+                local destination = island
+                local button = Instance.new("TextButton",list)
+                button.Size = UDim2.new(1,-9,0,34)
+                button.Position = UDim2.fromOffset(0,count*38)
+                button.BackgroundColor3 = Theme.Button
+                button.BackgroundTransparency = 0.15
+                button.TextColor3 = Theme.Text
+                button.Font = Enum.Font.GothamMedium
+                button.TextSize = 12
+                button.TextWrapped = true
+                local tag = island.event and " [EVENTO]" or island.npc and " [ACESSO]" or island.portal and " [ENTRADA]" or not island.cf and " [LOCALIZAR]" or ""
+                button.Text = island.nome .. tag
+                roundUI(button,7)
+                button.Activated:Connect(function() TweenTeleport(destination) end)
+                count = count + 1
+            end
+        end
+        list.Size = UDim2.new(1,0,0,HUD.currentSea and math.min(280,math.max(38,count*38)) or 0)
+        list.CanvasSize = UDim2.fromOffset(0,count*38)
+        list.CanvasPosition = Vector2.zero
+        if HUD.currentSea then selectedLabel.Text = "SEA "..HUD.currentSea.." / "..count.." de "..#entries.." destinos. [EVENTO] depende de estar carregado." end
+    end
     for sea = 1,3 do
+        local selectedSea = sea
         local button = Instance.new("TextButton",selector)
         button.Size = UDim2.new(1/3,-6,1,0)
         button.Position = UDim2.new((sea-1)/3,0,0,0)
@@ -989,61 +1213,27 @@ do
         button.Font = Enum.Font.GothamBold
         roundUI(button,8)
         buttons[sea] = button
+        button.Activated:Connect(function()
+            CancelTeleport("SEA "..selectedSea.." selecionado. Escolha uma ilha.")
+            HUD.currentSea = selectedSea
+            search.Text = ""
+            for index, item in ipairs(buttons) do
+                item.BackgroundColor3 = index == selectedSea and Theme.DarkRed or Theme.Button
+                item.Text = "SEA "..index..(index == selectedSea and " [x]" or "")
+            end
+            rebuild()
+        end)
     end
-    local dropdownBtn = Instance.new("TextButton",tabTeleport)
-    dropdownBtn.Size = UDim2.new(1,0,0,38)
-    dropdownBtn.BackgroundColor3 = Theme.Button
-    dropdownBtn.TextColor3 = Theme.Text
-    dropdownBtn.Text = "ESCOLHA UM SEA ACIMA"
-    dropdownBtn.TextSize = 13
-    dropdownBtn.Font = Enum.Font.GothamBold
-    roundUI(dropdownBtn,8)
-    local list = Instance.new("Frame",tabTeleport)
-    list.Size = UDim2.new(1,0,0,0)
-    list.BackgroundTransparency = 1
-    list.ClipsDescendants = true
-    local open = false
-    local entries = {}
-    local function renderSize()
-        list.Size = UDim2.new(1,0,0,open and #entries*36 or 0)
-        dropdownBtn.Text = HUD.currentSea and ("ILHAS DO SEA "..HUD.currentSea..(open and " ▲" or " ▼")) or "ESCOLHA UM SEA ACIMA"
+    search:GetPropertyChangedSignal("Text"):Connect(rebuild)
+    HUD.resetSeaSelection = function()
+        HUD.currentSea = nil
+        search.Text = ""
+        for sea, button in ipairs(buttons) do button.Text = "SEA "..sea; button.BackgroundColor3 = Theme.Button end
+        selectedLabel.Text = "Escolha o Sea em que voce esta."
+        rebuild()
     end
-    local function selectSea(sea)
-        if not HUD.islandsBySea[sea] then return end
-        CancelTeleport("SEA "..sea.." selecionado. Escolha uma ilha.")
-        HUD.currentSea = sea
-        for _, child in ipairs(list:GetChildren()) do child:Destroy() end
-        entries = HUD.islandsBySea[sea]
-        for index, island in ipairs(entries) do
-            local button = Instance.new("TextButton",list)
-            button.Size = UDim2.new(1,0,0,32)
-            button.Position = UDim2.fromOffset(0,(index-1)*36)
-            button.BackgroundColor3 = Theme.Button
-            button.BackgroundTransparency = 0.15
-            button.TextColor3 = Theme.Text
-            button.Font = Enum.Font.GothamMedium
-            button.TextSize = 13
-            button.Text = island.nome
-            roundUI(button,7)
-            button.Activated:Connect(function() TweenTeleport(island.cf) end)
-        end
-        for index, button in ipairs(buttons) do
-            button.BackgroundColor3 = index == sea and Theme.DarkRed or Theme.Button
-            button.Text = "SEA "..index..(index == sea and " ✓" or "")
-        end
-        selectedLabel.Text = "SEA "..sea.." selecionado / "..#entries.." destinos. Esta escolha só altera a lista."
-        open = true
-        renderSize()
-    end
-    for sea, button in ipairs(buttons) do
-        button.Activated:Connect(function() selectSea(sea) end)
-    end
-    dropdownBtn.Activated:Connect(function()
-        if not HUD.currentSea then return end
-        open = not open
-        renderSize()
-    end)
 end
+
 
 -- ================= BOTÃO CANCELAR =================
 local cancelBtn = Instance.new("TextButton", tabTeleport)
@@ -1086,7 +1276,7 @@ do
         roundUI(button,8)
         button.Activated:Connect(function()
             if game.PlaceId == destination.id then note.Text = "Você já está no "..destination.name.."."; return end
-            if HUD.seaBusy then return end
+            if HUD.seaBusy or HUD.serverBusy then return end
             CancelTeleport("Solicitando troca de Sea…")
             if HUD.stopFly then HUD.stopFly() end
             HUD.farmPaused, HUD.seaBusy = true, true
@@ -1120,164 +1310,210 @@ do
     end)
 end
 
--- ================= AIMBOT (DEPOIS DO TELEPORT) =================
-criarSecao("AIMBOT",0,tabAimbot)
+-- ================= AIMBOT v011: JOGADORES / NPCs =================
+do
+    local aim = {mode = nil, part = nil, model = nil, humanoid = nil, owner = nil,
+        playerFov = 200, npcFov = 200, distance = 500, smooth = 0,
+        enemiesOnly = false, showFov = true, highlight = true, elapsed = 0}
+    local green = Color3.fromRGB(55, 235, 130)
+    local function clearTarget()
+        aim.part, aim.model, aim.humanoid, aim.owner = nil, nil, nil, nil
+    end
+    local circle = Instance.new("Frame", gui)
+    circle.Name = "AimFOV"
+    circle.AnchorPoint = Vector2.new(0.5, 0.5)
+    circle.BackgroundTransparency = 1
+    circle.Visible = false
+    roundUI(circle, 9999)
+    local stroke = Instance.new("UIStroke", circle)
+    stroke.Thickness = 1.5
+    local marker = Instance.new("Highlight", gui)
+    marker.Name = "AimTarget"
+    marker.DepthMode = Enum.HighlightDepthMode.Occluded
+    marker.FillTransparency = 0.88
+    marker.OutlineTransparency = 0.1
+    marker.Enabled = false
 
-local AIM_MAX_DISTANCE = 500
-local AIM_MIN_FOV = 50
-local AIM_MAX_FOV = 500
-local AIM_FOV_RADIUS = 200
+    criarSecao("MIRA • F JOGADORES / H NPCs E BOSSES",0,tabAimbot)
+    local controls = {}
+    local status = Instance.new("TextLabel")
+    local function updateUI()
+        for mode, button in pairs(controls) do
+            local active = aim.mode == mode
+            local name = mode == "NPC" and "[H] NPCs / BOSSES" or "[F] JOGADORES"
+            button.Text = name .. (active and "  •  LIGADO" or "  •  DESLIGADO")
+            button.TextColor3 = active and (mode == "NPC" and green or Theme.Red) or Theme.Text
+        end
+        local color = aim.mode == "NPC" and green or Theme.Red
+        stroke.Color = color
+        marker.FillColor, marker.OutlineColor = color, color
+        marker.Adornee = aim.model
+        marker.Enabled = aim.highlight and aim.model ~= nil and aim.mode ~= nil
+        if not aim.mode then
+            status.Text = "Mira desligada • F: jogadores | H: NPCs/bosses"
+        elseif aim.model and aim.humanoid then
+            status.Text = "ALVO: " .. aim.model.Name .. " • HP " .. math.ceil(aim.humanoid.Health)
+        else
+            status.Text = "Buscando " .. (aim.mode == "NPC" and "NPC/boss em Enemies" or "jogador") .. " visivel no circulo..."
+        end
+        status.TextColor3 = aim.mode and color or Theme.Text
+    end
+    local function setMode(mode)
+        aim.mode = mode
+        aim.elapsed = 1
+        clearTarget()
+        circle.Visible = false
+        updateUI()
+    end
+    HUD.resetAim = function() setMode(nil) end
+    for _, mode in ipairs({"PLAYER", "NPC"}) do
+        local selectedMode = mode
+        local button = Instance.new("TextButton", tabAimbot)
+        button.Size = UDim2.new(1, 0, 0, 46)
+        button.BackgroundColor3 = Theme.Second
+        button.BackgroundTransparency = 0.2
+        button.BorderSizePixel = 0
+        button.Font = Enum.Font.GothamBold
+        button.TextSize = 12
+        roundUI(button)
+        controls[mode] = button
+        button.Activated:Connect(function()
+            if aim.mode == selectedMode then setMode(nil) else setMode(selectedMode) end
+        end)
+    end
+    status.Size = UDim2.new(1, 0, 0, 48)
+    status.BackgroundTransparency = 1
+    status.Font = Enum.Font.GothamMedium
+    status.TextSize = 12
+    status.TextWrapped = true
+    status.Parent = tabAimbot
+    criarBotaoToggle("JOGADORES: SO INIMIGOS",0,tabAimbot,function(v)
+        aim.enemiesOnly = v; clearTarget()
+    end)
+    criarBotaoToggle("OCULTAR CIRCULO FOV",0,tabAimbot,function(v) aim.showFov = not v end)
+    criarBotaoToggle("OCULTAR DESTAQUE DO ALVO",0,tabAimbot,function(v)
+        aim.highlight = not v; updateUI()
+    end)
+    criarSlider("FOV JOGADORES",50,500,200,0,tabAimbot,function(v) aim.playerFov = v end)
+    criarSlider("FOV NPCs / BOSSES",50,500,200,0,tabAimbot,function(v) aim.npcFov = v end)
+    criarSlider("DISTANCIA DA MIRA",50,1500,500,0,tabAimbot,function(v) aim.distance = v end)
+    criarSlider("SUAVIDADE (0 = INSTANTANEO)",0,100,0,0,tabAimbot,function(v) aim.smooth = v end)
 
-local aimbotEnabled = false
-local aimMode = "ALL"       -- ALL | ENEMIES
-local aimPartMode = "BOTH" -- HEAD | TORSO | BOTH
-
-local lockedPart, lockedHumanoid
-
-local function getTorso(char)
-	return char:FindFirstChild("HumanoidRootPart")
-		or char:FindFirstChild("UpperTorso")
-		or char:FindFirstChild("Torso")
+    local function sameTeam(other)
+        if player.Team and other.Team then return player.Team == other.Team end
+        if player.TeamColor and other.TeamColor then return player.TeamColor == other.TeamColor end
+        return false
+    end
+    local function eligible(model, owner)
+        if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then return false end
+        if aim.mode == "PLAYER" then
+            return owner and owner ~= player and owner.Parent == Players and owner.Character == model
+                and (not aim.enemiesOnly or not sameTeam(owner))
+        end
+        local folder = workspace:FindFirstChild("Enemies")
+        return aim.mode == "NPC" and folder and model.Parent == folder
+            and model ~= player.Character and not Players:GetPlayerFromCharacter(model)
+    end
+    local function visiblePart(camera, model, part, holding)
+        if not part or not part:IsA("BasePart") or not part:IsDescendantOf(model) then return nil end
+        local distance = (part.Position - camera.CFrame.Position).Magnitude
+        local offset = 0
+        -- FOV e distancia limitam apenas a captura de um NOVO alvo.
+        if not holding then
+            if distance > aim.distance or distance < 0.01 then return nil end
+            local screen, onScreen = camera:WorldToViewportPoint(part.Position)
+            if not onScreen or screen.Z <= 0 then return nil end
+            local center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+            offset = (Vector2.new(screen.X, screen.Y) - center).Magnitude
+            local radius = aim.mode == "NPC" and aim.npcFov or aim.playerFov
+            if offset > radius then return nil end
+        end
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = player.Character and {player.Character} or {}
+        params.IgnoreWater = true
+        local hit = workspace:Raycast(camera.CFrame.Position, part.Position - camera.CFrame.Position, params)
+        if hit and not hit.Instance:IsDescendantOf(model) then return nil end
+        return offset
+    end
+    local function acquire(camera)
+        local best = math.huge
+        local function consider(model, owner)
+            if not eligible(model, owner) then return end
+            local hum = model:FindFirstChildOfClass("Humanoid")
+            if not hum or hum.Health <= 0 then return end
+            local head = model:FindFirstChild("Head")
+            local torso = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso")
+            local parts = {}
+            if head then table.insert(parts, head) end
+            if torso then table.insert(parts, torso) end
+            for _, part in ipairs(parts) do
+                local score = visiblePart(camera, model, part)
+                if score and score < best then
+                    best = score
+                    aim.part, aim.model, aim.humanoid, aim.owner = part, model, hum, owner
+                end
+            end
+        end
+        if aim.mode == "PLAYER" then
+            for _, other in ipairs(Players:GetPlayers()) do consider(other.Character, other) end
+        elseif aim.mode == "NPC" then
+            local folder = workspace:FindFirstChild("Enemies")
+            if folder then
+                for _, npc in ipairs(folder:GetChildren()) do consider(npc, nil) end
+            end
+        end
+    end
+    HUD.connect(UserInputService.InputBegan, function(input, processed)
+        if processed or UserInputService:GetFocusedTextBox() then return end
+        if input.KeyCode == Enum.KeyCode.F then
+            if aim.mode == "PLAYER" then setMode(nil) else setMode("PLAYER") end
+        elseif input.KeyCode == Enum.KeyCode.H then
+            if aim.mode == "NPC" then setMode(nil) else setMode("NPC") end
+        end
+    end)
+    HUD.connect(player.CharacterRemoving, function() setMode(nil) end)
+    HUD.connect(RunService.RenderStepped, function(dt)
+        local camera = workspace.CurrentCamera
+        local ownChar = player.Character
+        local ownHum = ownChar and ownChar:FindFirstChildOfClass("Humanoid")
+        if not aim.mode or not camera or not ownHum or ownHum.Health <= 0 then
+            circle.Visible = false
+            if aim.model then clearTarget(); updateUI() end
+            return
+        end
+        local radius = aim.mode == "NPC" and aim.npcFov or aim.playerFov
+        local inset = gui.IgnoreGuiInset and Vector2.new() or game:GetService("GuiService"):GetGuiInset()
+        circle.Visible = aim.showFov
+        circle.Size = UDim2.fromOffset(radius * 2, radius * 2)
+        circle.Position = UDim2.fromOffset(camera.ViewportSize.X / 2 - inset.X, camera.ViewportSize.Y / 2 - inset.Y)
+        aim.elapsed = aim.elapsed + dt
+        -- Verifica obstrucao antes de mover a camera, em cada quadro.
+        if aim.part and (not eligible(aim.model, aim.owner) or not aim.humanoid or aim.humanoid.Health <= 0
+            or visiblePart(camera, aim.model, aim.part, true) == nil) then
+            clearTarget()
+            updateUI()
+        end
+        -- Digitar pausa a camera, mas nao troca nem descarta um alvo ainda visivel.
+        if UserInputService:GetFocusedTextBox() then return end
+        -- So busca outro alvo quando o anterior deixa de ser valido.
+        if aim.elapsed >= 0.1 then
+            aim.elapsed = 0
+            if not aim.part then acquire(camera) end
+            updateUI()
+        end
+        if aim.part and aim.part:IsDescendantOf(workspace) and aim.humanoid and aim.humanoid.Health > 0 then
+            local origin = camera.CFrame.Position
+            if (aim.part.Position - origin).Magnitude > 0.01 then
+                local desired = CFrame.lookAt(origin, aim.part.Position)
+                local alpha = aim.smooth == 0 and 1 or 1 - math.exp(-dt / (0.025 + aim.smooth * 0.003))
+                camera.CFrame = camera.CFrame:Lerp(desired, alpha)
+            end
+        end
+    end)
+    updateUI()
 end
 
-local function sameTeam(plr)
-	if player.Team and plr.Team then
-		return player.Team == plr.Team
-	end
-	if player.TeamColor and plr.TeamColor then
-		return player.TeamColor == plr.TeamColor
-	end
-	return false
-end
-
-local function isEnemyAim(plr)
-	return aimMode == "ALL" or not sameTeam(plr)
-end
-
-local function hasLineOfSight(char, part)
-	local origin = Camera.CFrame.Position
-	local direction = (part.Position - origin)
-
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Blacklist
-	params.FilterDescendantsInstances = {player.Character}
-	params.IgnoreWater = true
-
-	local result = workspace:Raycast(origin, direction, params)
-
-	if result then
-		return result.Instance:IsDescendantOf(char)
-	end
-
-	return false
-end
-
-local function getTarget()
-	local bestPart, bestHum
-	local bestDist = math.huge
-
-	local camPos = Camera.CFrame.Position
-	local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr ~= player and plr.Character and isEnemyAim(plr) then
-			local hum = plr.Character:FindFirstChild("Humanoid")
-			if hum and hum.Health > 0 then
-				local head = plr.Character:FindFirstChild("Head")
-				local torso = getTorso(plr.Character)
-
-				local parts = {}
-				if aimPartMode == "HEAD" and head then
-					parts = { head }
-				elseif aimPartMode == "TORSO" and torso then
-					parts = { torso }
-				else
-					if head then table.insert(parts, head) end
-					if torso then table.insert(parts, torso) end
-				end
-
-				for _, part in ipairs(parts) do
-					local dist = (part.Position - camPos).Magnitude
-					if dist <= AIM_MAX_DISTANCE and dist < bestDist then
-						local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
-						if onScreen 
-	                     and (Vector2.new(sp.X, sp.Y) - center).Magnitude <= AIM_FOV_RADIUS
-	                     and hasLineOfSight(plr.Character, part) 
-                    then
-							bestDist = dist
-							bestPart = part
-							bestHum = hum
-						end
-					end
-				end
-			end
-		end
-	end
-
-	lockedHumanoid = bestHum
-	return bestPart
-end
-
-HUD.connect(RunService.RenderStepped, function()
-	if not aimbotEnabled then return end
-
-	if not lockedPart then
-		lockedPart = getTarget()
-	end
-
-	if lockedPart and lockedHumanoid and lockedHumanoid.Health > 0 then
-		Camera.CFrame = CFrame.new(Camera.CFrame.Position, lockedPart.Position)
-	else
-		lockedPart, lockedHumanoid = nil, nil
-	end
-end)
-
--- Botões no menu
--- ================= TOGGLE AIMBOT NA TECLA F =================
-HUD.connect(UserInputService.InputBegan, function(i, gp)
-	if gp then return end
-	if i.KeyCode == Enum.KeyCode.F then
-		aimbotEnabled = not aimbotEnabled
-		lockedPart, lockedHumanoid = nil, nil
-	end
-end)
-
-criarBotaoToggle("SÓ INIMIGOS",40,tabAimbot,function(v)
-	aimMode = v and "ENEMIES" or "ALL"
-	lockedPart = nil
-end)
-
-criarBotaoToggle("MIRA: CABEÇA",80,tabAimbot,function(v)
-	if v then
-		aimPartMode = "HEAD"
-	else
-		aimPartMode = "BOTH"
-	end
-	lockedPart = nil
-end)
-
-criarSlider("FOV AIM",AIM_MIN_FOV,AIM_MAX_FOV,AIM_FOV_RADIUS,120,tabAimbot,function(v)
-	AIM_FOV_RADIUS = v
-end)
--- Círculo FOV nativo: não depende da biblioteca Drawing.
-local fovCircle = Instance.new("Frame", gui)
-fovCircle.Name = "AimFOV"
-fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-fovCircle.BackgroundTransparency = 1
-fovCircle.Visible = false
-roundUI(fovCircle, 9999)
-local fovStroke = Instance.new("UIStroke", fovCircle)
-fovStroke.Thickness = 1.5
-fovStroke.Color = Theme.Red
-HUD.connect(RunService.RenderStepped, function()
-    if not aimbotEnabled then fovCircle.Visible = false; return end
-    local currentCamera = workspace.CurrentCamera
-    if not currentCamera then return end
-    local inset = game:GetService("GuiService"):GetGuiInset()
-    fovCircle.Visible = aimbotEnabled
-    fovCircle.Size = UDim2.fromOffset(AIM_FOV_RADIUS * 2, AIM_FOV_RADIUS * 2)
-    fovCircle.Position = UDim2.fromOffset(currentCamera.ViewportSize.X / 2 - inset.X, currentCamera.ViewportSize.Y / 2 - inset.Y)
-end)
 -- ================= LOOP =================
 HUD.connect(RunService.RenderStepped, function(dt)
     if not (autoSafeEnabled or autoFarmEnabled or tpSpeed > 0 or noclip or floorEnabled or next(HUD.collisions) or HUD.hitboxPart) then return end
@@ -1582,6 +1818,7 @@ HUD.stopFly = function()
     flying, HUD.flying = false, false
     local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if wasFlying and root then root.Anchored = false end
+    if HUD.clearFlightMarker then HUD.clearFlightMarker() end
 end
 local speed = 3
 
@@ -1589,6 +1826,93 @@ local keys = {
 	W=false, A=false, S=false, D=false,
 	Space=false, Ctrl=false
 }
+
+-- Silhueta local da pose inicial: uma marca por vez, sem colisoes ou scripts.
+do
+    function HUD.clearFlightMarker()
+        if HUD.flightMarker then HUD.flightMarker:Destroy(); HUD.flightMarker = nil end
+    end
+    function HUD.markFlightStart(character, root)
+        HUD.clearFlightMarker()
+        local ghost = Instance.new("Model")
+        HUD.flightMarker = ghost
+        ghost.Name = "PudimHub_FlightOrigin"
+        local origin = root.CFrame
+        for _, bodyPart in ipairs(character:GetChildren()) do
+            if bodyPart:IsA("BasePart") and bodyPart ~= root and bodyPart.Transparency < 1 then
+                local pose = bodyPart.CFrame
+                local ok, copy = pcall(function() return bodyPart:Clone() end)
+                if not ok or not copy then
+                    copy = Instance.new("Part")
+                    copy.Size = bodyPart.Size
+                end
+                -- Nao carregar juntas, scripts, texturas ou emissores para o Workspace.
+                for _, child in ipairs(copy:GetChildren()) do
+                    if child:IsA("DataModelMesh") then
+                        for _, nested in ipairs(child:GetChildren()) do nested:Destroy() end
+                        if child:IsA("SpecialMesh") then child.TextureId = "" end
+                    else child:Destroy() end
+                end
+                if copy:IsA("MeshPart") then copy.TextureID = "" end
+                copy.Name = bodyPart.Name
+                copy.Anchored = true
+                copy.CanCollide, copy.CanTouch, copy.CanQuery = false, false, false
+                copy.CastShadow = false
+                copy.Material = Enum.Material.Neon
+                copy.Color = Theme.Red
+                copy.Transparency = 0.25
+                copy.LocalTransparencyModifier = 0
+                copy.CFrame = pose
+                copy.Parent = ghost
+            end
+        end
+        local anchor = Instance.new("Part")
+        anchor.Name = "StartPosition"
+        anchor.Size = Vector3.new(0.2, 0.2, 0.2)
+        anchor.CFrame = origin
+        anchor.Transparency = 1
+        anchor.Anchored = true
+        anchor.CanCollide, anchor.CanTouch, anchor.CanQuery = false, false, false
+        anchor.Parent = ghost
+        ghost.PrimaryPart = anchor
+        local billboard = Instance.new("BillboardGui", anchor)
+        billboard.Name = "FlightOriginLabel"
+        billboard.Adornee = anchor
+        billboard.Size = UDim2.fromOffset(180, 32)
+        billboard.StudsOffsetWorldSpace = Vector3.new(0, 4, 0)
+        billboard.AlwaysOnTop = true
+        billboard.MaxDistance = 3000
+        local text = Instance.new("TextLabel", billboard)
+        text.Size = UDim2.fromScale(1, 1)
+        text.BackgroundTransparency = 1
+        text.Text = "INICIO DO VOO"
+        text.TextColor3 = Theme.Red
+        text.TextStrokeTransparency = 0.25
+        text.Font = Enum.Font.GothamBold
+        text.TextSize = 13
+        local outline = Instance.new("Highlight", ghost)
+        outline.Adornee = ghost
+        outline.FillColor = Theme.Red
+        outline.FillTransparency = 0.65
+        outline.OutlineColor = Color3.fromRGB(255, 160, 175)
+        outline.OutlineTransparency = 0
+        outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        ghost.Parent = workspace
+    end
+    local clear = Instance.new("TextButton", tabPlayer)
+    clear.Size = UDim2.new(1, 0, 0, 42)
+    clear.BackgroundColor3 = Theme.Second
+    clear.BackgroundTransparency = 0.2
+    clear.BorderSizePixel = 0
+    clear.Text = "LIMPAR SILHUETA DO INICIO DO VOO"
+    clear.TextColor3 = Theme.Text
+    clear.Font = Enum.Font.GothamMedium
+    clear.TextSize = 12
+    roundUI(clear)
+    clear.Activated:Connect(HUD.clearFlightMarker)
+    HUD.connect(player.CharacterRemoving, HUD.clearFlightMarker)
+    gui.Destroying:Connect(HUD.clearFlightMarker)
+end
 
 local function getFlyRoot()
 	return player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -1605,13 +1929,20 @@ HUD.connect(UserInputService.InputBegan, function(i, gp)
 
 	-- ALT + CLICK ESQUERDO
 	if altPressed and i.UserInputType == Enum.UserInputType.MouseButton1 and not HUD.seaBusy then
-		CancelTeleport("Viagem cancelada pelo comando de voo.")
+        local root = getFlyRoot()
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not root or not hum or hum.Health <= 0 then return end
+        CancelTeleport("Viagem cancelada pelo comando de voo.")
+        if not flying then
+            -- Capturar a pose e posicao antes de ancorar ou mover o personagem.
+            local ok, err = pcall(HUD.markFlightStart, char, root)
+            if not ok then HUD.clearFlightMarker(); warn("PudimHub: falha na silhueta: " .. tostring(err)) end
+        end
         flying = not flying
         HUD.flying = flying
-		local root = getFlyRoot()
-		if root then
-			root.Anchored = flying
-		end
+        root.Anchored = flying
+        if not flying then HUD.clearFlightMarker() end
 	end
 
 	if i.KeyCode == Enum.KeyCode.W then keys.W = true end
@@ -1765,7 +2096,7 @@ do
     roundUI(healthFill, 2)
     local resources = textCard(tabOverview, "Beli: —   |   Fragmentos: —", 62)
     criarSecao("ATALHOS", 0, tabOverview)
-    textCard(tabOverview, "G  ·  Abrir / recolher menu\nF  ·  Alternar mira\nB  ·  Teleporte no cursor\nAlt + clique  ·  Alternar voo", 110)
+    textCard(tabOverview, "G  ·  Abrir / recolher menu\nF  ·  Mira jogadores / H  ·  Mira NPCs\nB  ·  Teleporte no cursor\nAlt + clique  ·  Alternar voo", 110)
     textCard(tabOverview, "Movimento: clique ou arraste as barras. Você também pode digitar um valor. O pulo começa em 60.", 78)
     action(tabOverview, "Centralizar janela", function() frame.Position = UDim2.fromScale(0.5, 0.5) end)
 
@@ -1905,9 +2236,31 @@ do
         if type(saved.status) == "boolean" then HUD.status = saved.status end
         feedback.Text = "Preferências carregadas."
     end)
-    action(tabSettings, "Restaurar valores padrão dos sliders", function()
+    action(tabSettings, "Restaurar TODOS os controles", function()
+        -- Executar callbacks reais e atualizar tambem a aparencia dos botoes.
+        if HUD.cancelServerSearch then HUD.cancelServerSearch() end
+        for _, control in ipairs(HUD.toggles) do control.set(control.default, true) end
+        if HUD.resetAim then HUD.resetAim() end
+        if HUD.stopFly then HUD.stopFly() end
+        CancelTeleport("Controles restaurados. Viagem local cancelada.")
+        HUD.restoreHitbox()
+        for part, collision in pairs(HUD.collisions) do
+            if part.Parent then part.CanCollide = collision end
+            HUD.collisions[part] = nil
+        end
         for _, control in pairs(HUD.sliders) do control.set(control.default) end
-        feedback.Text = "Valores padrão restaurados. Pulo: 60."
+        HUD.farmFilter, HUD.farmPaused = "", false
+        if HUD.farmFilterInput then HUD.farmFilterInput.Text = "" end
+        farmTarget = nil
+        HUD.farmSearchAt, HUD.farmAttackAt, HUD.manualHold = 0, 0, 0
+        HUD.farmStatus.Text = "Auto farm desligado."
+        if HUD.resetSeaSelection then HUD.resetSeaSelection() end
+        HUD.status = true
+        footer.Visible = true
+        search.Text = ""
+        frame.Position = UDim2.fromScale(0.5, 0.5)
+        for _, page in ipairs(tabs) do page.CanvasPosition = Vector2.zero end
+        feedback.Text = "Controles restaurados: ESP, mira, farm e voo desligados. Pulo: 60."
     end)
     HUD.connect(player.CharacterAdded, function(character)
         local humanoid = character:WaitForChild("Humanoid", 10)
@@ -2004,4 +2357,127 @@ do
         if target then HUD.farmStatus.Text = HUD.tryAttack(target,tool,root,os.clock(),true)
         else HUD.farmStatus.Text = "Ataque por proximidade: aguardando NPC em alcance." end
     end)
+end
+
+-- ================= SERVIDORES PUBLICOS =================
+-- https://create.roblox.com/docs/cloud/reference/domains/games
+do
+    local token, busy, pending, cooldown = 0, false, nil, 0
+    local attempted = {[game.JobId] = true}
+    local buttons = {}
+    local status = Instance.new("TextLabel", tabSistema)
+    status.Size = UDim2.new(1, 0, 0, 80)
+    status.BackgroundTransparency = 1
+    status.TextColor3 = Theme.Text
+    status.Font = Enum.Font.GothamMedium
+    status.TextSize = 12
+    status.TextWrapped = true
+    status.Text = "Busca no Sea atual. Menos cheio nao garante vazio. Filtro Brasil indisponivel: pais nao confirmado pela lista publica."
+    local function finish(message)
+        busy, HUD.serverBusy, pending = false, false, nil
+        status.Text = message
+        for _, button in ipairs(buttons) do
+            button.AutoButtonColor = true
+            button.TextTransparency = 0
+        end
+    end
+    HUD.cancelServerSearch = function()
+        token = token + 1
+        finish("Busca encerrada. Um teleporte ja enviado ao Roblox nao pode ser desfeito por este botao.")
+    end
+    local function active(id) return HUD.alive and busy and token == id end
+    local function getPage(url)
+        local requestFn = request or http_request or (syn and syn.request)
+        local body
+        if type(requestFn) == "function" then
+            local response = requestFn({Url = url, Method = "GET"})
+            if type(response) ~= "table" then error("Resposta HTTP invalida.") end
+            local code = tonumber(response.StatusCode)
+            if code == 429 then error("Limite de consultas do Roblox. Aguarde antes de tentar novamente.") end
+            if not code or code < 200 or code >= 300 then error("Consulta HTTP recusada: " .. tostring(code)) end
+            body = response.Body
+        else
+            local ok, result = pcall(function() return game:HttpGet(url) end)
+            if not ok then error("A lista nao pode ser consultada neste ambiente. Tente novamente mais tarde.") end
+            body = result
+        end
+        local data = HttpService:JSONDecode(body)
+        if type(data) ~= "table" or type(data.data) ~= "table" then error("Lista de servidores invalida.") end
+        return data
+    end
+    local function start(mode)
+        if busy then return end
+        if HUD.seaBusy then status.Text = "Aguarde a viagem entre Seas terminar."; return end
+        if os.clock() < cooldown then status.Text = "Aguarde alguns segundos antes de buscar novamente."; return end
+        cooldown = os.clock() + 8
+        busy, HUD.serverBusy = true, true
+        token = token + 1
+        local id = token
+        for _, button in ipairs(buttons) do button.AutoButtonColor = false; button.TextTransparency = 0.45 end
+        status.Text = "Procurando servidores publicos no Sea atual..."
+        task.delay(35, function()
+            if active(id) then
+                token = token + 1
+                finish("Tempo limite. A entrada nao foi confirmada; aguarde antes de tentar outra vez.")
+            end
+        end)
+        task.spawn(function()
+            local ok, err = pcall(function()
+                local cursor, candidates, seen = nil, {}, {}
+                for page = 1, 3 do
+                    if not active(id) then return end
+                    local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&excludeFullGames=true&limit=100"
+                    if cursor then url = url .. "&cursor=" .. HttpService:UrlEncode(cursor) end
+                    local data = getPage(url)
+                    if not active(id) then return end
+                    for _, server in ipairs(data.data) do
+                        if type(server) == "table" and type(server.id) == "string" and server.id ~= ""
+                            and type(server.playing) == "number" and type(server.maxPlayers) == "number"
+                            and server.playing >= 0 and server.playing < server.maxPlayers
+                            and server.id ~= game.JobId and not attempted[server.id] and not seen[server.id] then
+                            seen[server.id] = true
+                            table.insert(candidates, server)
+                        end
+                    end
+                    cursor = data.nextPageCursor
+                    if type(cursor) ~= "string" or cursor == "" then break end
+                    task.wait(0.8)
+                end
+                if not active(id) then return end
+                if #candidates == 0 then finish("Nenhum outro servidor com vaga nas paginas consultadas. Tente mais tarde."); return end
+                table.sort(candidates, function(a, b) return a.playing < b.playing end)
+                local chosen = mode == "EMPTY" and candidates[1] or candidates[math.random(1, #candidates)]
+                attempted[chosen.id] = true
+                pending = chosen.id
+                CancelTeleport("Viagem local interrompida para trocar de servidor.")
+                if HUD.stopFly then HUD.stopFly() end
+                HUD.farmPaused = true
+                status.Text = "Solicitando entrada: " .. chosen.playing .. "/" .. chosen.maxPlayers .. " jogadores. Regiao desconhecida."
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, chosen.id, player)
+            end)
+            if not ok and active(id) then finish("Falha: " .. tostring(err)) end
+        end)
+    end
+    local function addButton(text, mode)
+        local button = Instance.new("TextButton", tabSistema)
+        button.Size = UDim2.new(1, 0, 0, 44)
+        button.BackgroundColor3 = Theme.DarkRed
+        button.BorderSizePixel = 0
+        button.TextColor3 = Theme.Text
+        button.Font = Enum.Font.GothamBold
+        button.TextSize = 12
+        button.Text = text
+        roundUI(button)
+        button.Activated:Connect(function() start(mode) end)
+        table.insert(buttons, button)
+    end
+    addButton("SERVIDOR VAZIO / MENOS CHEIO", "EMPTY")
+    addButton("TROCAR DE SERVIDOR", "OTHER")
+    HUD.connect(TeleportService.TeleportInitFailed, function(who, result, message, placeId, options)
+        if who ~= player or not busy or not pending or placeId ~= game.PlaceId then return end
+        if options and options.ServerInstanceId ~= "" and options.ServerInstanceId ~= pending then return end
+        token = token + 1
+        finish("Entrada recusada: " .. tostring(message) .. ". Clique novamente para tentar outro servidor.")
+    end)
+    gui.Destroying:Connect(function() token = token + 1; busy = false; HUD.serverBusy = false end)
 end
