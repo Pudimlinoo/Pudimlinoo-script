@@ -1,4 +1,4 @@
--- PudimHub v023 | Base v022 | Recuperacao do farm, arma escolhida e mira revisada
+-- PudimHub v026 | Base v025 | ESP de frutas somente texto
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/Pudimlinoo/Pudimlinoo-script/main/script.lua"))()
 
 local Players = game:GetService("Players")
@@ -366,7 +366,7 @@ local subtitle = Instance.new("TextLabel", frame)
 subtitle.BackgroundTransparency = 1
 subtitle.Position = UDim2.new(1, -150, 0, 20)
 subtitle.Size = UDim2.fromOffset(130, 24)
-subtitle.Text = "V023  /  BLOX FRUITS"
+subtitle.Text = "V026  /  BLOX FRUITS"
 subtitle.Font = Enum.Font.GothamMedium
 subtitle.TextSize = 11
 subtitle.TextColor3 = Color3.fromRGB(156, 161, 177)
@@ -770,65 +770,93 @@ do
 end
 -- ================= ESP FRUTAS =================
 
-local FruitRarity = {
-
-	["Rocket"] = "Common",
-	["Spin"] = "Common",
-	["Chop"] = "Common",
-	["Spring"] = "Common",
-	["Bomb"] = "Common",
-	["Smoke"] = "Common",
-	["Spike"] = "Common",
-
-	["Flame"] = "Uncommon",
-	["Falcon"] = "Uncommon",
-	["Ice"] = "Uncommon",
-	["Sand"] = "Uncommon",
-	["Dark"] = "Uncommon",
-	["Diamond"] = "Uncommon",
-
-	["Light"] = "Rare",
-	["Rubber"] = "Rare",
-	["Barrier"] = "Rare",
-	["Ghost"] = "Rare",
-	["Magma"] = "Rare",
-
-	["Quake"] = "Legendary",
-	["Buddha"] = "Legendary",
-	["Love"] = "Legendary",
-	["Spider"] = "Legendary",
-	["Sound"] = "Legendary",
-	["Phoenix"] = "Legendary",
-	["Portal"] = "Legendary",
-	["Rumble"] = "Legendary",
-	["Pain"] = "Legendary",
-	["Blizzard"] = "Legendary",
-
-	["Gravity"] = "Mythical",
-	["Dough"] = "Mythical",
-	["Shadow"] = "Mythical",
-	["Venom"] = "Mythical",
-	["Control"] = "Mythical",
-	["Spirit"] = "Mythical",
-	["Dragon"] = "Mythical",
-	["Leopard"] = "Mythical",
-	["Kitsune"] = "Mythical"
-
+-- Catalogo local de nomes e raridades. ESP somente texto.
+HUD.fruitCatalog = {
+    ["Rocket"] = {rarity="Common"},
+    ["Spin"] = {rarity="Common"},
+    ["Chop"] = {rarity="Common"},
+    ["Spring"] = {rarity="Common"},
+    ["Bomb"] = {rarity="Common"},
+    ["Smoke"] = {rarity="Common"},
+    ["Spike"] = {rarity="Common"},
+    ["Flame"] = {rarity="Uncommon"},
+    ["Falcon"] = {rarity="Uncommon"},
+    ["Ice"] = {rarity="Uncommon"},
+    ["Sand"] = {rarity="Uncommon"},
+    ["Dark"] = {rarity="Uncommon"},
+    ["Diamond"] = {rarity="Uncommon"},
+    ["Light"] = {rarity="Rare"},
+    ["Rubber"] = {rarity="Rare"},
+    ["Barrier"] = {rarity="Rare"},
+    ["Ghost"] = {rarity="Rare"},
+    ["Magma"] = {rarity="Rare"},
+    ["Quake"] = {rarity="Legendary"},
+    ["Buddha"] = {rarity="Legendary"},
+    ["Love"] = {rarity="Legendary"},
+    ["Spider"] = {rarity="Legendary"},
+    ["Sound"] = {rarity="Legendary"},
+    ["Phoenix"] = {rarity="Legendary"},
+    ["Portal"] = {rarity="Legendary"},
+    ["Rumble"] = {rarity="Legendary"},
+    ["Pain"] = {rarity="Legendary"},
+    ["Blizzard"] = {rarity="Legendary"},
+    ["Gravity"] = {rarity="Mythical"},
+    ["Dough"] = {rarity="Mythical"},
+    ["Shadow"] = {rarity="Mythical"},
+    ["Venom"] = {rarity="Mythical"},
+    ["Control"] = {rarity="Mythical"},
+    ["Spirit"] = {rarity="Mythical"},
+    ["Dragon"] = {rarity="Mythical"},
+    ["Leopard"] = {rarity="Mythical"},
+    ["Kitsune"] = {rarity="Mythical"},
+    ["Mammoth"] = {rarity="Mythical"},
+    ["T-Rex"] = {rarity="Mythical"},
 }
-
-local RarityColors = {
-
-	Common = Color3.fromRGB(180,180,180),
-	Uncommon = Color3.fromRGB(80,255,80),
-	Rare = Color3.fromRGB(80,150,255),
-	Legendary = Color3.fromRGB(255,170,0),
-	Mythical = Color3.fromRGB(255,70,70)
-
+HUD.fruitColors = {
+    Common=Color3.fromRGB(180,180,180), Uncommon=Color3.fromRGB(80,255,80),
+    Rare=Color3.fromRGB(80,150,255), Legendary=Color3.fromRGB(255,170,0),
+    Mythical=Color3.fromRGB(255,70,70), Unknown=Color3.fromRGB(210,210,220)
 }
-
+HUD.equippedFruitESP = true
+-- Preserva os nomes adicionais reconhecidos na v025.
+for _,name in ipairs({"Blade","Creation","Dragon East","Dragon West","Eagle","Gas","Lightning","Tiger","Yeti"}) do
+    HUD.fruitCatalog[name]=HUD.fruitCatalog[name] or {rarity="Unknown"}
+end
+HUD.fruitNames = {}
+for name in pairs(HUD.fruitCatalog) do HUD.fruitNames[name:lower()] = name end
+function HUD.fruitInfo(tool)
+    if not tool or not tool:IsA("Tool") then return nil end
+    local raw = tool.Name:match("^%s*(.-)%s*$")
+    local clean = raw:gsub("%s+[Ff][Rr][Uu][Ii][Tt]$", "")
+    -- Alguns objetos usam nomes duplicados, como Rocket-Rocket.
+    for canonical in pairs(HUD.fruitCatalog) do
+        if clean:lower() == (canonical.."-"..canonical):lower() then clean=canonical; break end
+    end
+    local name = HUD.fruitNames[clean:lower()]
+    if not name and clean == raw and tool.ToolTip ~= "Blox Fruit" then return nil end
+    name = name or clean
+    local entry = HUD.fruitCatalog[name]
+    return {name=name, rarity=entry and entry.rarity or "Unknown"}
+end
+function HUD.isWorldFruit(tool)
+    if not HUD.fruitInfo(tool) or not tool:IsDescendantOf(workspace) then return false end
+    local parent=tool.Parent
+    while parent and parent~=workspace do
+        if parent:IsA("Backpack") or (parent:IsA("Model") and Players:GetPlayerFromCharacter(parent)) then return false end
+        parent=parent.Parent
+    end
+    return true
+end
+function HUD.equippedFruit(character)
+    if not HUD.equippedFruitESP or not character then return nil end
+    for _,tool in ipairs(character:GetChildren()) do
+        local info=HUD.fruitInfo(tool)
+        if info then return info end
+    end
+end
 local function createFruitESP(tool)
 
-	if not HUD.alive or not fruitESPEnabled or not tool:IsDescendantOf(workspace) or fruitEspObjects[tool] then return end
+	if not HUD.alive or not fruitESPEnabled or not HUD.isWorldFruit(tool) or fruitEspObjects[tool] then return end
 
 	local part = tool:FindFirstChildWhichIsA("BasePart")
 	if not part then return end
@@ -849,7 +877,7 @@ local function createFruitESP(tool)
 	txt.Parent = bill
 	txt.TextStrokeTransparency = 0
 	txt.TextStrokeColor3 = Color3.new(0,0,0)
-	bill.Size = UDim2.new(0,120,0,40)	
+	bill.Size = UDim2.fromOffset(230,48)
 
 	fruitEspObjects[tool] = {
 		gui = bill,
@@ -906,6 +934,13 @@ criarBotaoToggle("ESP frutas",110,tabESP,function(v)
     if HUD.setFruitESP then HUD.setFruitESP(v) end
 end)
 
+criarBotaoToggle("Ocultar fruta equipada no ESP",0,tabESP,function(v) HUD.equippedFruitESP=not v end)
+do
+    local note=Instance.new("TextLabel",tabESP)
+    note.Size=UDim2.new(1,0,0,70); note.BackgroundTransparency=1
+    note.TextColor3=Theme.Text; note.Font=Enum.Font.Gotham; note.TextSize=12; note.TextWrapped=true
+    note.Text="Fruta equipada: somente ferramentas visiveis no personagem. Nao mostra inventario guardado."
+end
 -- ================= SISTEMA =================
 criarSecao("SISTEMA",0,tabSistema)
 
@@ -1780,7 +1815,33 @@ end)
 -- ================= ESP SOB DEMANDA =================
 do
     local scanToken = 0
+    local watched = {}
+    local function watchTool(tool)
+        if not tool:IsA("Tool") then return end
+        if not watched[tool] then
+            local connections={}
+            watched[tool]=connections
+            connections[1]=tool.AncestryChanged:Connect(function()
+                if HUD.alive and fruitESPEnabled and HUD.isWorldFruit(tool) then createFruitESP(tool) end
+            end)
+            connections[2]=tool.Destroying:Connect(function()
+                for _,connection in ipairs(connections) do connection:Disconnect() end
+                watched[tool]=nil
+            end)
+        end
+        if HUD.isWorldFruit(tool) then createFruitESP(tool) end
+    end
+    gui.Destroying:Connect(function()
+        for _,connections in pairs(watched) do
+            for _,connection in ipairs(connections) do connection:Disconnect() end
+        end
+        table.clear(watched)
+    end)
     local function clearFruitESP()
+        for _,connections in pairs(watched) do
+            for _,connection in ipairs(connections) do connection:Disconnect() end
+        end
+        table.clear(watched)
         for tool, entry in pairs(fruitEspObjects) do
             entry.gui:Destroy()
             fruitEspObjects[tool] = nil
@@ -1797,7 +1858,7 @@ do
             while #pending > 0 and HUD.alive and fruitESPEnabled and token == scanToken do
                 local item = table.remove(pending)
                 if item == workspace or item:IsDescendantOf(workspace) then
-                    if item:IsA("Tool") and item.Name:find("Fruit") then createFruitESP(item) end
+                    if item:IsA("Tool") then watchTool(item) end
                     for _, child in ipairs(item:GetChildren()) do
                         table.insert(pending,child)
                     end
@@ -1810,7 +1871,7 @@ do
     HUD.connect(workspace.DescendantAdded,function(item)
         if not fruitESPEnabled then return end
         local tool = item:IsA("Tool") and item or (item:IsA("BasePart") and item.Parent)
-        if tool and tool:IsA("Tool") and tool.Name:find("Fruit") then createFruitESP(tool) end
+        if tool and tool:IsA("Tool") then watchTool(tool) end
     end)
     local elapsed = 0
     HUD.connect(RunService.Heartbeat,function(dt)
@@ -1822,16 +1883,16 @@ do
         local ownRoot = character and character:FindFirstChild("HumanoidRootPart")
         if fruitESPEnabled then
             for tool, entry in pairs(fruitEspObjects) do
-                if not tool:IsDescendantOf(workspace) or not entry.part:IsDescendantOf(workspace) then
+                if not HUD.isWorldFruit(tool) or not entry.part:IsDescendantOf(tool) then
                     entry.gui:Destroy()
                     fruitEspObjects[tool] = nil
                 else
                     entry.gui.Enabled = ownRoot ~= nil
                     if ownRoot then
-                        local name = tool.Name:gsub(" Fruit","")
-                        local rarity = FruitRarity[name] or "Common"
-                        entry.label.TextColor3 = RarityColors[rarity]
-                        entry.label.Text = name.."\n"..math.floor((ownRoot.Position-entry.part.Position).Magnitude).." studs / "..rarity
+                        local info = HUD.fruitInfo(tool)
+                        entry.label.TextColor3=HUD.fruitColors[info.rarity]
+                        local rarity=info.rarity=="Unknown" and "Desconhecida" or info.rarity
+                        HUD.setText(entry.label,info.name.."\n"..math.floor((ownRoot.Position-entry.part.Position).Magnitude).." studs / "..rarity)
                     end
                 end
             end
@@ -1856,18 +1917,29 @@ do
                 if visible then
                     if not bill then
                         bill = Instance.new("BillboardGui")
-                        bill.Size = UDim2.fromOffset(200,80)
+                        bill.Size = UDim2.fromOffset(240,112)
                         bill.AlwaysOnTop = true
                         bill.Adornee = head
                         bill.Parent = head
                         local text = Instance.new("TextLabel",bill)
                         text.Name = "Info"
-                        text.Size = UDim2.fromScale(1,1)
+                        text.Size = UDim2.new(1,0,0,76)
                         text.BackgroundTransparency = 1
                         text.TextStrokeTransparency = 0
                         text.Font = Enum.Font.GothamMedium
                         text.TextSize = 14
+                        local fruitText=Instance.new("TextLabel",bill)
+                        fruitText.Name="EquippedFruit"; fruitText.Position=UDim2.fromOffset(0,76)
+                        fruitText.Size=UDim2.new(1,0,0,34); fruitText.BackgroundTransparency=1
+                        fruitText.TextStrokeTransparency=0; fruitText.Font=Enum.Font.GothamMedium
+                        fruitText.TextSize=12; fruitText.TextWrapped=true
                         espObjects[plr] = bill
+                    end
+                    local fruit=HUD.equippedFruit(char)
+                    bill.EquippedFruit.Visible=fruit~=nil
+                    if fruit then
+                        bill.EquippedFruit.TextColor3=HUD.fruitColors[fruit.rarity]
+                        HUD.setText(bill.EquippedFruit,"Equipada: "..fruit.name)
                     end
                     local data = plr:FindFirstChild("Data")
                     local level = data and data:FindFirstChild("Level")
@@ -2247,7 +2319,7 @@ do
     footer.TextSize = 11
     footer.Font = Enum.Font.GothamMedium
     footer.TextColor3 = Color3.fromRGB(156, 161, 177)
-    HUD.setText(footer,"PUDIM HUB  /  V023")
+    HUD.setText(footer,"PUDIM HUB  /  V026")
     local sessionStart = os.clock()
     local elapsed, frames = 0, 0
     HUD.connect(RunService.Heartbeat, function(dt)
@@ -2352,7 +2424,7 @@ do
     end)
     action(tabSettings, "Centralizar janela", function() frame.Position = UDim2.fromScale(0.5, 0.5) end)
     criarSecao("PREFERÊNCIAS", 0, tabSettings)
-    local feedback = textCard(tabSettings, "V023 salva preferencias automaticamente por conta. Abaixo: importar/exportar o arquivo antigo. Funcoes de jogo iniciam desligadas.", 88)
+    local feedback = textCard(tabSettings, "V026 salva preferencias automaticamente por conta. Abaixo: importar/exportar o arquivo antigo. Funcoes de jogo iniciam desligadas.", 88)
     local settingsFile = "PudimHub_UI_v005.json"
     action(tabSettings, "Exportar preferencias antigas", function()
         if type(writefile) ~= "function" then feedback.Text = "Este ambiente não oferece salvamento em arquivo."; return end
@@ -2666,7 +2738,7 @@ do
         HUD.connect(item.Activated,callback)
         return item
     end
-    criarSecao("PUDIMHUB / V023",0,tabSistema)
+    criarSecao("PUDIMHUB / V026",0,tabSistema)
     local activity=label(tabSistema,"Pronto",40)
     local diagnostics=label(tabSistema,HUD.errorText,70)
     local storage=label(tabSettings,HUD.storageText,55)
