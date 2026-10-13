@@ -1,3 +1,4 @@
+-- PudimHub v023 | Base v022 | Recuperacao do farm, arma escolhida e mira revisada
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/Pudimlinoo/Pudimlinoo-script/main/script.lua"))()
 
 local Players = game:GetService("Players")
@@ -31,7 +32,7 @@ local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
-local CommF = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+-- Servicos opcionais sao resolvidos somente quando utilizados.
 
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
@@ -54,63 +55,81 @@ local Theme = {
 	Stroke = Color3.fromRGB(60,60,60)
 
 }
--- ================= FUNÇÕES PLAYER =================
-local function getChar()
-	return player.Character or player.CharacterAdded:Wait()
-end
-
-local function getHumanoid()
-	return getChar():WaitForChild("Humanoid")
-end
-
-local function getRoot()
-	return getChar():WaitForChild("HumanoidRootPart")
-end
-
-
-local function fastClick()
-	mouse1click()
-end
-
--- ================= BUSCAR NPC =================
-
-local function getClosestEnemy()
-
--- ================= FAST ATTACK =================
-
-local VirtualUser = game:GetService("VirtualUser")
-
-	local closest
-	local dist = math.huge
-
-	local enemiesFolder = workspace:FindFirstChild("Enemies")
-if not enemiesFolder then return nil end
-
-for _,v in pairs(enemiesFolder:GetChildren()) do
-
-		local hum = v:FindFirstChild("Humanoid")
-		local root = v:FindFirstChild("HumanoidRootPart")
-
-		if hum and root and hum.Health > 0 then
-
-			local d = (getRoot().Position - root.Position).Magnitude
-
-			if d < dist then
-				dist = d
-				closest = v
-			end
-
-		end
-	end
-
-	return closest
-end
-
 -- Estado de interface e registro dos controles (sem ativar funções ao carregar).
 local HUD = {toggles = {}, sliders = {}, jump = 60, scale = 100, status = true, alive = true, connections = {}, collisions = setmetatable({}, {__mode = "k"}), espLoops = {}}
+-- Recursos locais: diagnostico, tarefas cancelaveis e preferencias.
+HUD.favorites = {}
+HUD.keys = {menu="G", players="F", npcs="H", cursor="B"}
+HUD.light = true
+HUD.watchEvents = false
+HUD.errorText = "Nenhum erro registrado."
+HUD.storageText = "Preparando preferencias..."
+HUD.jobs = {}
+function HUD.report(context, detail)
+    local message=tostring(context)..": "..tostring(detail):sub(1,220)
+    if message~=HUD.errorText or os.clock()-(HUD.errorAt or 0)>5 then
+        warn("[PudimHub] "..message)
+        HUD.errorAt=os.clock()
+    end
+    HUD.errorText=message
+end
+function HUD.setText(label, value)
+    if label.Text ~= value then label.Text = value end
+end
+function HUD.startJob(callback)
+    local job
+    job = task.defer(function()
+        if HUD.alive then
+            local ok, err = pcall(callback)
+            if not ok then HUD.report("Tarefa",err) end
+        end
+        HUD.jobs[job] = nil
+    end)
+    HUD.jobs[job] = true
+    return job
+end
+function HUD.remote(...)
+    local folder = ReplicatedStorage:FindFirstChild("Remotes")
+    local remote = folder and folder:FindFirstChild("CommF_")
+    if not remote or not remote:IsA("RemoteFunction") then
+        HUD.report("Servico do jogo","CommF_ ainda indisponivel; tente novamente apos carregar.")
+        error(HUD.errorText,0)
+    end
+    local args=table.pack(...)
+    local result
+    local job=HUD.startJob(function()
+        result=table.pack(pcall(function() return remote:InvokeServer(table.unpack(args,1,args.n)) end))
+    end)
+    local deadline=os.clock()+10
+    repeat task.wait(0.05) until result or not HUD.alive or os.clock()>=deadline
+    if not result then
+        pcall(task.cancel,job); HUD.jobs[job]=nil
+        HUD.report("Servico do jogo","Tempo limite de resposta. Uma solicitacao enviada pode ainda ser processada.")
+        error(HUD.errorText,0)
+    end
+    if not result[1] then HUD.report("Servico do jogo",result[2]); error(tostring(result[2]),0) end
+    return table.unpack(result,2,result.n)
+end
+function HUD.activity()
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return "PERSONAGEM", "Aguardando personagem vivo" end
+    if HUD.seaBusy then return "SEA", "Trocando de mar" end
+    if HUD.serverBusy then return "SERVIDOR", "Buscando / trocando servidor" end
+    if HUD.travelActive then return "VIAGEM", "Viagem em andamento" end
+    if HUD.flying then return "VOO", "Voo ativo" end
+    if HUD.safeActive then return "SAFE", "Auto Safe ativo" end
+    if os.clock() < HUD.manualHold then return "MANUAL", "Movimento manual" end
+    if HUD.farmPaused then return "PAUSA", "Farm pausado; use Retomar farm" end
+    return "LIVRE", "Pronto"
+end
+
 function HUD.connect(signal, callback)
     local connection = signal:Connect(function(...)
-        if HUD.alive then callback(...) end
+        if HUD.alive then
+            local ok,err=pcall(callback,...)
+            if not ok then HUD.report("Evento",err) end
+        end
     end)
     table.insert(HUD.connections, connection)
     return connection
@@ -172,6 +191,72 @@ end
 function HUD.isCombatTool(tool)
     return tool and tool:IsA("Tool") and (tool.ToolTip == "Melee" or tool.ToolTip == "Sword")
 end
+-- Compartilhado pelo farm e ataque proximo; sem inferir autoria do dano.
+HUD.weaponName=""
+HUD.aimFilter=""
+HUD.aimPriority="Tela"
+HUD.farmIgnored=setmetatable({}, {__mode="k"})
+HUD.progress=nil
+HUD.nearTarget=nil
+HUD.nearSearchAt=0
+HUD.moveAt=0
+function HUD.pickWeapon(char,hum,now)
+    local equipped=char:FindFirstChildOfClass("Tool")
+    local function matches(tool)
+        return HUD.isCombatTool(tool) and (HUD.weaponName=="" or tool.Name==HUD.weaponName)
+    end
+    if matches(equipped) then return equipped end
+    if not HUD.autoEquip or now<(HUD.equipAt or 0) then return nil end
+    HUD.equipAt=now+1
+    local backpack=player:FindFirstChildOfClass("Backpack")
+    if backpack then
+        for _,tool in ipairs(backpack:GetChildren()) do
+            if matches(tool) then
+                hum:EquipTool(tool)
+                if tool.Parent==char then return tool end
+                return nil
+            end
+        end
+    end
+    return nil
+end
+function HUD.observeProgress(npc,now)
+    local hum=npc and npc:FindFirstChildOfClass("Humanoid")
+    if not hum then HUD.progress=nil; return false end
+    local state=HUD.progress
+    if not state or state.target~=npc then
+        HUD.progress={target=npc,health=hum.Health,at=now,retries=0,lastTry=0}
+        return false
+    end
+    if hum.Health<state.health then state.at=now; state.retries=0 end
+    state.health=hum.Health
+    if now-state.lastTry>1.5 then state.at=now; return false end
+    if now-state.at<8 then return false end
+    state.at=now
+    state.retries=state.retries+1
+    if state.retries==1 then
+        HUD.moveAt=0
+        return "Reposicionando: vida do alvo sem reducao observada."
+    end
+    HUD.farmIgnored[npc]=now+15
+    HUD.progress=nil
+    return "Alvo sem progresso; ignorado por 15 segundos."
+end
+function HUD.resetCombatExtras()
+    HUD.progress=nil; HUD.nearTarget=nil; HUD.moveAt=0; HUD.nearSearchAt=0
+    table.clear(HUD.farmIgnored)
+end
+function HUD.validFarmTarget(npc,root,now,radius)
+    local enemies=workspace:FindFirstChild("Enemies")
+    if not npc or not enemies or npc.Parent~=enemies then return false end
+    local hum=npc:FindFirstChildOfClass("Humanoid")
+    local part=npc:FindFirstChild("HumanoidRootPart")
+    return hum and part and part:IsA("BasePart") and hum.Health>0
+        and (HUD.farmIgnored[npc] or 0)<=now
+        and (part.Position-root.Position).Magnitude<=radius
+        and (HUD.farmFilter=="" or npc.Name:lower():find(HUD.farmFilter,1,true)~=nil)
+end
+
 function HUD.tryAttack(npc, tool, root, now, fast)
     if not HUD.isCombatTool(tool) then return "Equipe uma ferramenta Melee ou Sword." end
     local targetHum = npc and npc:FindFirstChildOfClass("Humanoid")
@@ -184,12 +269,13 @@ function HUD.tryAttack(npc, tool, root, now, fast)
     HUD.farmAttackAt = now + (fast and 1 / HUD.attackHz or 0.3)
     local ok = pcall(function() tool:Activate() end)
     if not ok then return "A ferramenta não aceitou a ativação." end
+    if HUD.progress and HUD.progress.target==npc then HUD.progress.lastTry=now end
     task.delay(0.025,function()
         if HUD.alive and tool.Parent == player.Character and tool.Enabled then
             pcall(function() tool:Deactivate() end)
         end
     end)
-    return "Atacando: "..npc.Name.." / "..tool.Name
+    return "Tentando atacar: "..npc.Name.." / "..tool.Name
 end
 HUD.manualHold = 0
 HUD.seaBusy = false
@@ -254,6 +340,7 @@ shadow.Position = UDim2.new(0.5,0,0.5,0)
 shadow.Size = UDim2.new(1,40,1,40)
 shadow.Image = "rbxassetid://1316045217"
 shadow.ImageTransparency = 0.6
+shadow.Visible = false
 shadow.BackgroundTransparency = 1
 shadow.ZIndex = 0
 
@@ -279,7 +366,7 @@ local subtitle = Instance.new("TextLabel", frame)
 subtitle.BackgroundTransparency = 1
 subtitle.Position = UDim2.new(1, -150, 0, 20)
 subtitle.Size = UDim2.fromOffset(130, 24)
-subtitle.Text = "V010  /  BLOX FRUITS"
+subtitle.Text = "V023  /  BLOX FRUITS"
 subtitle.Font = Enum.Font.GothamMedium
 subtitle.TextSize = 11
 subtitle.TextColor3 = Color3.fromRGB(156, 161, 177)
@@ -340,7 +427,7 @@ local function createTab(name)
     btn.BackgroundColor3 = Theme.Second
     btn.BorderSizePixel = 0
     btn.AutoButtonColor = false
-    btn.Text = name
+    btn.Text = ({["INÍCIO"]="Início",PLAYER="Player",["Auto-Farm"]="Auto Farm",TELEPORT="Teleporte",AIMBOT="Aimbot",SISTEMA="Sistema",AJUSTES="Ajustes"})[name] or name
     btn.Font = Enum.Font.GothamMedium
     btn.TextColor3 = Color3.fromRGB(155, 161, 180)
     btn.TextSize = 12
@@ -461,6 +548,7 @@ local function criarBotaoToggle(txt, y, p, cb)
             positionTween:Play()
         end
         cb(state)
+        if HUD.preferencesChanged then HUD.preferencesChanged() end
     end
     table.insert(HUD.toggles, {set = setState, default = false})
     row.Activated:Connect(function() setState(not state, false) end)
@@ -521,7 +609,7 @@ local function criarSlider(txt, min, max, init, y, p, cb)
         fill.Size = UDim2.fromScale(ratio, 1)
         knob.Position = UDim2.fromScale(ratio, 0.5)
         valueBox.Text = tostring(newValue)
-        if value ~= newValue then value = newValue; cb(value) end
+        if value ~= newValue then value = newValue; cb(value); if HUD.preferencesChanged then HUD.preferencesChanged() end end
     end
     local function fromPosition(position)
         if bar.AbsoluteSize.X <= 0 then return end
@@ -596,14 +684,15 @@ local fastAttackEnabled = false
 -- ================= AUTO FARM MENU =================
 criarSecao("AUTO FARM NPC",0,tabFarm)
 
-criarBotaoToggle("AUTO FARM",30,tabFarm,function(v)
+criarBotaoToggle("Auto Farm",30,tabFarm,function(v)
 	autoFarmEnabled = v
 	farmTarget = nil
     HUD.farmPaused = false
+    HUD.resetCombatExtras()
     HUD.farmSearchAt = 0
 end)
 
-criarBotaoToggle("FAST ATTACK",70,tabFarm,function(v)
+criarBotaoToggle("Fast Attack",70,tabFarm,function(v)
 	fastAttackEnabled = v
 end)
 
@@ -618,7 +707,7 @@ criarSlider("DISTÂNCIA NPC",2,10,farmDistance,190,tabFarm,function(v)
 end)
 
 criarSlider("RAIO DE BUSCA NPC",100,3000,800,0,tabFarm,function(v) HUD.farmRadius = v end)
-criarBotaoToggle("EQUIPAR MELEE / ESPADA",0,tabFarm,function(v) HUD.autoEquip = v end)
+criarBotaoToggle("Equipar Melee / Espada",0,tabFarm,function(v) HUD.autoEquip = v end)
 do
     local filter = Instance.new("TextBox", tabFarm)
     HUD.farmFilterInput = filter
@@ -634,6 +723,7 @@ do
     roundUI(filter,8)
     filter.FocusLost:Connect(function()
         HUD.farmFilter = string.lower(filter.Text):match("^%s*(.-)%s*$")
+        if HUD.preferencesChanged then HUD.preferencesChanged() end
         farmTarget = nil
         HUD.farmSearchAt = 0
     end)
@@ -644,14 +734,14 @@ do
     HUD.farmStatus.Font = Enum.Font.GothamMedium
     HUD.farmStatus.TextSize = 12
     HUD.farmStatus.TextWrapped = true
-    HUD.farmStatus.Text = "Auto farm desligado."
+    HUD.setText(HUD.farmStatus,"Auto farm desligado.")
     local resume = Instance.new("TextButton", tabFarm)
     resume.Size = UDim2.new(1,0,0,38)
     resume.BackgroundColor3 = Theme.DarkRed
     resume.TextColor3 = Theme.Text
     resume.Font = Enum.Font.GothamMedium
     resume.TextSize = 12
-    resume.Text = "RETOMAR FARM APÓS VIAGEM"
+    resume.Text = "Retomar farm após viagem"
     roundUI(resume,8)
     resume.Activated:Connect(function()
         if not HUD.travelActive and not HUD.seaBusy then HUD.farmPaused = false; HUD.farmSearchAt = 0 end
@@ -661,9 +751,9 @@ end
 criarSecao("CONTROLE DE ATAQUE",0,tabFarm)
 criarSlider("Tentativas por segundo",2,15,10,0,tabFarm,function(v) HUD.attackHz = v end)
 criarSlider("Distância de ativação",1,8,4,0,tabFarm,function(v) HUD.attackReach = v end)
-criarBotaoToggle("ATAQUE PERTO DE NPC (SEM FARM)",0,tabFarm,function(v) HUD.autoNear = v; if not v then HUD.restoreHitbox() end end)
-criarBotaoToggle("MANTER ALTURA MANUAL",0,tabFarm,function(v) HUD.manualFarmHeight = v end)
-criarBotaoToggle("HITBOX LOCAL DO NPC",0,tabFarm,function(v)
+criarBotaoToggle("Ataque perto de NPC (sem farm)",0,tabFarm,function(v) HUD.autoNear = v; if not v then HUD.restoreHitbox() end end)
+criarBotaoToggle("Manter altura manual",0,tabFarm,function(v) HUD.manualFarmHeight = v end)
+criarBotaoToggle("Hitbox local do NPC",0,tabFarm,function(v)
     HUD.localHitbox = v
     if not v then HUD.restoreHitbox() end
 end)
@@ -771,11 +861,11 @@ end
 -- ================= PLAYER =================
 criarSecao("PLAYER",0,tabPlayer)
 
-criarBotaoToggle("NOCLIP",30,tabPlayer,function(v)
+criarBotaoToggle("Noclip",30,tabPlayer,function(v)
 	noclip = v
 end)
 
-criarBotaoToggle("CHÃO INFINITO",70,tabPlayer,function(v)
+criarBotaoToggle("Water Walk",70,tabPlayer,function(v)
 	floorEnabled = v
 	if not v and floor then
 		floor:Destroy()
@@ -797,21 +887,21 @@ criarSlider("Velocidade TP",0,10,0,220,tabPlayer,function(v)
 	tpSpeed = v
 end)
 
-criarSecao("AUTO SAFE", 270, tabPlayer)
-criarBotaoToggle("AUTO SAFE", 300, tabPlayer, function(v) autoSafeEnabled = v; if not v then emFuga = false end end)
+criarSecao("Auto Safe", 270, tabPlayer)
+criarBotaoToggle("Auto Safe", 300, tabPlayer, function(v) autoSafeEnabled = v; if not v then emFuga = false end end)
 criarSlider("Limite % Vida", 5, 95, autoSafePercent, 340, tabPlayer, function(v) autoSafePercent = v end)
 criarSlider("Altura Safe", 200, 20000, autoSafeHeight, 410, tabPlayer, function(v) autoSafeHeight = v end)
 -- ================= ESP =================
 criarSecao("ESP",0,tabESP)
-criarBotaoToggle("ESP JOGADORES",30,tabESP,function(v)
+criarBotaoToggle("ESP jogadores",30,tabESP,function(v)
 	ESPAtivo = v
 end)
 
-criarBotaoToggle("SÓ INIMIGOS",70,tabESP,function(v)
+criarBotaoToggle("Só inimigos",70,tabESP,function(v)
 	espOnlyEnemies = v
 end)
 
-criarBotaoToggle("ESP FRUTAS",110,tabESP,function(v)
+criarBotaoToggle("ESP frutas",110,tabESP,function(v)
 	fruitESPEnabled = v
     if HUD.setFruitESP then HUD.setFruitESP(v) end
 end)
@@ -821,12 +911,12 @@ criarSecao("SISTEMA",0,tabSistema)
 
 local rejoin = Instance.new("TextButton",tabSistema)
 rejoin.Position = UDim2.new(0,10,0,30)
-rejoin.Size = UDim2.new(1,-20,0,32)
-rejoin.BackgroundColor3 = Theme.Red
-rejoin.Text="REJOIN"
+rejoin.Size = UDim2.new(1,0,0,38)
+rejoin.BackgroundColor3 = Theme.Button
+rejoin.Text="Rejoin"
 rejoin.TextColor3=Color3.new(1,1,1)
 rejoin.Font=Enum.Font.GothamMedium
-rejoin.TextSize=18
+rejoin.TextSize=12
 Instance.new("UICorner",rejoin)
 
 rejoin.MouseButton1Click:Connect(function()
@@ -846,18 +936,18 @@ criarSecao("TIME (BLOX FRUITS)",80,tabSistema)
 
 local function setTeam(team)
 	pcall(function()
-		CommF:InvokeServer("SetTeam",team)
+		HUD.remote("SetTeam",team)
 	end)
 end
 
 local marine = Instance.new("TextButton",tabSistema)
 marine.Position = UDim2.new(0,10,0,110)
-marine.Size = UDim2.new(1,-20,0,32)
+marine.Size = UDim2.new(1,0,0,38)
 marine.BackgroundColor3 = Color3.fromRGB(0,90,160)
-marine.Text="ENTRAR MARINE"
+marine.Text="Entrar Marine"
 marine.TextColor3=Color3.new(1,1,1)
 marine.Font=Enum.Font.GothamMedium
-marine.TextSize=18
+marine.TextSize=12
 Instance.new("UICorner",marine)
 marine.MouseButton1Click:Connect(function()
 	setTeam("Marines")
@@ -865,12 +955,12 @@ end)
 
 local pirate = Instance.new("TextButton",tabSistema)
 pirate.Position = UDim2.new(0,10,0,150)
-pirate.Size = UDim2.new(1,-20,0,32)
+pirate.Size = UDim2.new(1,0,0,38)
 pirate.BackgroundColor3 = Color3.fromRGB(160,40,40)
-pirate.Text="ENTRAR PIRATA"
+pirate.Text="Entrar Pirata"
 pirate.TextColor3=Color3.new(1,1,1)
 pirate.Font=Enum.Font.GothamMedium
-pirate.TextSize=18
+pirate.TextSize=12
 Instance.new("UICorner",pirate)
 pirate.MouseButton1Click:Connect(function()
 	setTeam("Pirates")
@@ -1035,9 +1125,9 @@ local function TweenTeleport(destination)
         travelStatus.Text = "Solicitando entrada de " .. destination.nome .. "..."
         -- Uma solicitacao por etapa; sem repeticao ilimitada ou reset do personagem.
         local finished, success = false, false
-        task.spawn(function()
+        HUD.startJob(function()
             if not valid() then return end
-            success = pcall(function() CommF:InvokeServer("requestEntrance", position) end)
+            success = pcall(function() HUD.remote("requestEntrance", position) end)
             finished = true
         end)
         local deadline = os.clock() + 8
@@ -1050,7 +1140,7 @@ local function TweenTeleport(destination)
         end
         return true
     end
-    task.spawn(function()
+    HUD.startJob(function()
         local ok, err = pcall(function()
             local point, observed, livePosition = destination.cf, nil, nil
             local needsGround = not destination.cf and not destination.npc
@@ -1173,7 +1263,13 @@ do
     list.CanvasSize = UDim2.new()
     local function rebuild()
         for _, child in ipairs(list:GetChildren()) do child:Destroy() end
-        local entries = HUD.islandsBySea[HUD.currentSea] or {}
+        local entries = table.clone(HUD.islandsBySea[HUD.currentSea] or {})
+        table.sort(entries,function(a,b)
+            local fa=HUD.favorites[tostring(HUD.currentSea)..":"..a.nome]==true
+            local fb=HUD.favorites[tostring(HUD.currentSea)..":"..b.nome]==true
+            if fa~=fb then return fa end
+            return a.nome<b.nome
+        end)
         local query = string.lower(search.Text):match("^%s*(.-)%s*$")
         local count = 0
         for _, island in ipairs(entries) do
@@ -1181,7 +1277,7 @@ do
             if query == "" or string.find(string.lower(keywords),query,1,true) then
                 local destination = island
                 local button = Instance.new("TextButton",list)
-                button.Size = UDim2.new(1,-9,0,34)
+                button.Size = UDim2.new(1,-49,0,34)
                 button.Position = UDim2.fromOffset(0,count*38)
                 button.BackgroundColor3 = Theme.Button
                 button.BackgroundTransparency = 0.15
@@ -1193,6 +1289,20 @@ do
                 button.Text = island.nome .. tag
                 roundUI(button,7)
                 button.Activated:Connect(function() TweenTeleport(destination) end)
+                local favorite=Instance.new("TextButton",list)
+                favorite.Size=UDim2.fromOffset(34,34)
+                favorite.Position=UDim2.new(1,-43,0,count*38)
+                favorite.BackgroundColor3=Theme.Second
+                favorite.TextColor3=Theme.Red
+                favorite.TextSize=22
+                local key=tostring(HUD.currentSea)..":"..island.nome
+                favorite.Text=HUD.favorites[key] and "★" or "☆"
+                roundUI(favorite,7)
+                favorite.Activated:Connect(function()
+                    HUD.favorites[key]=not HUD.favorites[key] or nil
+                    if HUD.preferencesChanged then HUD.preferencesChanged() end
+                    rebuild()
+                end)
                 count = count + 1
             end
         end
@@ -1224,6 +1334,7 @@ do
             rebuild()
         end)
     end
+    HUD.refreshIslands = rebuild
     search:GetPropertyChangedSignal("Text"):Connect(rebuild)
     HUD.resetSeaSelection = function()
         HUD.currentSea = nil
@@ -1240,7 +1351,7 @@ local cancelBtn = Instance.new("TextButton", tabTeleport)
 cancelBtn.Position = UDim2.new(0,10,0,302)
 cancelBtn.Size = UDim2.new(1,-20,0,32)
 cancelBtn.BackgroundColor3 = Color3.fromRGB(140,40,40)
-cancelBtn.Text = "CANCELAR TP"
+cancelBtn.Text = "Cancelar TP"
 cancelBtn.TextColor3 = Color3.new(1,1,1)
 cancelBtn.Font = Enum.Font.GothamMedium
 cancelBtn.TextSize = 16
@@ -1272,7 +1383,7 @@ do
         button.TextColor3 = Theme.Text
         button.Font = Enum.Font.GothamMedium
         button.TextSize = 13
-        button.Text = destination.name .. (game.PlaceId == destination.id and " / ATUAL" or " / VIAJAR")
+        button.Text = destination.name .. (game.PlaceId == destination.id and " / Atual" or " / Viajar")
         roundUI(button,8)
         button.Activated:Connect(function()
             if game.PlaceId == destination.id then note.Text = "Você já está no "..destination.name.."."; return end
@@ -1290,8 +1401,11 @@ do
                     note.Text = "Viagem não confirmada. Verifique o acesso ao Sea e tente pelo NPC de viagem."
                 end
             end)
-            task.spawn(function()
-                local ok = pcall(function() CommF:InvokeServer(destination.command) end)
+            HUD.startJob(function()
+                local ok = pcall(function()
+                    if HUD.savePreferences then HUD.savePreferences() end
+                    HUD.remote(destination.command)
+                end)
                 if not HUD.alive or token ~= HUD.seaToken then return end
                 if not ok then
                     HUD.seaBusy = false
@@ -1316,9 +1430,11 @@ do
         playerFov = 200, npcFov = 200, distance = 500, smooth = 0,
         enemiesOnly = false, showFov = true, highlight = true, elapsed = 0}
     local green = Color3.fromRGB(55, 235, 130)
-    local function clearTarget()
+    local function clearTarget(reason)
+        aim.reason=reason
         aim.part, aim.model, aim.humanoid, aim.owner = nil, nil, nil, nil
     end
+    HUD.clearAimTarget=clearTarget
     local circle = Instance.new("Frame", gui)
     circle.Name = "AimFOV"
     circle.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -1340,8 +1456,8 @@ do
     local function updateUI()
         for mode, button in pairs(controls) do
             local active = aim.mode == mode
-            local name = mode == "NPC" and "[H] NPCs / BOSSES" or "[F] JOGADORES"
-            button.Text = name .. (active and "  •  LIGADO" or "  •  DESLIGADO")
+            local name = mode == "NPC" and "["..HUD.keys.npcs.."] NPCs / Bosses" or "["..HUD.keys.players.."] Jogadores"
+            button.Text = name .. (active and "  •  Ligado" or "  •  Desligado")
             button.TextColor3 = active and (mode == "NPC" and green or Theme.Red) or Theme.Text
         end
         local color = aim.mode == "NPC" and green or Theme.Red
@@ -1350,11 +1466,11 @@ do
         marker.Adornee = aim.model
         marker.Enabled = aim.highlight and aim.model ~= nil and aim.mode ~= nil
         if not aim.mode then
-            status.Text = "Mira desligada • F: jogadores | H: NPCs/bosses"
+            status.Text = "Mira desligada • "..HUD.keys.players..": jogadores | "..HUD.keys.npcs..": NPCs/bosses"
         elseif aim.model and aim.humanoid then
             status.Text = "ALVO: " .. aim.model.Name .. " • HP " .. math.ceil(aim.humanoid.Health)
         else
-            status.Text = "Buscando " .. (aim.mode == "NPC" and "NPC/boss em Enemies" or "jogador") .. " visivel no circulo..."
+            status.Text = (aim.reason and aim.reason.." • " or "").."Buscando " .. (aim.mode == "NPC" and "NPC/boss" or "jogador") .. " visivel no circulo..."
         end
         status.TextColor3 = aim.mode and color or Theme.Text
     end
@@ -1387,11 +1503,11 @@ do
     status.TextSize = 12
     status.TextWrapped = true
     status.Parent = tabAimbot
-    criarBotaoToggle("JOGADORES: SO INIMIGOS",0,tabAimbot,function(v)
+    criarBotaoToggle("Jogadores: só inimigos",0,tabAimbot,function(v)
         aim.enemiesOnly = v; clearTarget()
     end)
-    criarBotaoToggle("OCULTAR CIRCULO FOV",0,tabAimbot,function(v) aim.showFov = not v end)
-    criarBotaoToggle("OCULTAR DESTAQUE DO ALVO",0,tabAimbot,function(v)
+    criarBotaoToggle("Ocultar círculo FOV",0,tabAimbot,function(v) aim.showFov = not v end)
+    criarBotaoToggle("Ocultar destaque do alvo",0,tabAimbot,function(v)
         aim.highlight = not v; updateUI()
     end)
     criarSlider("FOV JOGADORES",50,500,200,0,tabAimbot,function(v) aim.playerFov = v end)
@@ -1404,6 +1520,10 @@ do
         if player.TeamColor and other.TeamColor then return player.TeamColor == other.TeamColor end
         return false
     end
+    local sightParams=RaycastParams.new()
+    sightParams.FilterType=Enum.RaycastFilterType.Exclude
+    sightParams.IgnoreWater=true
+    local sightCharacter,sightCamera,sightFloor,sightMarker
     local function eligible(model, owner)
         if not model or not model:IsA("Model") or not model:IsDescendantOf(workspace) then return false end
         if aim.mode == "PLAYER" then
@@ -1413,6 +1533,7 @@ do
         local folder = workspace:FindFirstChild("Enemies")
         return aim.mode == "NPC" and folder and model.Parent == folder
             and model ~= player.Character and not Players:GetPlayerFromCharacter(model)
+            and (HUD.aimFilter=="" or model.Name:lower():find(HUD.aimFilter,1,true)~=nil)
     end
     local function visiblePart(camera, model, part, holding)
         if not part or not part:IsA("BasePart") or not part:IsDescendantOf(model) then return nil end
@@ -1428,11 +1549,15 @@ do
             local radius = aim.mode == "NPC" and aim.npcFov or aim.playerFov
             if offset > radius then return nil end
         end
-        local params = RaycastParams.new()
-        params.FilterType = Enum.RaycastFilterType.Exclude
-        params.FilterDescendantsInstances = player.Character and {player.Character} or {}
-        params.IgnoreWater = true
-        local hit = workspace:Raycast(camera.CFrame.Position, part.Position - camera.CFrame.Position, params)
+        if sightCharacter~=player.Character or sightCamera~=camera or sightFloor~=floor or sightMarker~=HUD.flightMarker then
+            sightCharacter,sightCamera,sightFloor,sightMarker=player.Character,camera,floor,HUD.flightMarker
+            local ignore={camera}
+            if sightCharacter then table.insert(ignore,sightCharacter) end
+            if floor then table.insert(ignore,floor) end
+            if HUD.flightMarker then table.insert(ignore,HUD.flightMarker) end
+            sightParams.FilterDescendantsInstances=ignore
+        end
+        local hit = workspace:Raycast(camera.CFrame.Position, part.Position - camera.CFrame.Position, sightParams)
         if hit and not hit.Instance:IsDescendantOf(model) then return nil end
         return offset
     end
@@ -1449,9 +1574,11 @@ do
             if torso then table.insert(parts, torso) end
             for _, part in ipairs(parts) do
                 local score = visiblePart(camera, model, part)
+                if score and HUD.aimPriority=="Distancia" then score=(part.Position-camera.CFrame.Position).Magnitude end
                 if score and score < best then
                     best = score
                     aim.part, aim.model, aim.humanoid, aim.owner = part, model, hum, owner
+                    aim.reason=nil
                 end
             end
         end
@@ -1466,14 +1593,15 @@ do
     end
     HUD.connect(UserInputService.InputBegan, function(input, processed)
         if processed or UserInputService:GetFocusedTextBox() then return end
-        if input.KeyCode == Enum.KeyCode.F then
+        if input.KeyCode == Enum.KeyCode[HUD.keys.players] then
             if aim.mode == "PLAYER" then setMode(nil) else setMode("PLAYER") end
-        elseif input.KeyCode == Enum.KeyCode.H then
+        elseif input.KeyCode == Enum.KeyCode[HUD.keys.npcs] then
             if aim.mode == "NPC" then setMode(nil) else setMode("NPC") end
         end
     end)
     HUD.connect(player.CharacterRemoving, function() setMode(nil) end)
-    HUD.connect(RunService.RenderStepped, function(dt)
+    local renderName="PudimHubAim_"..tostring(player.UserId)
+    local function renderAim(dt)
         local camera = workspace.CurrentCamera
         local ownChar = player.Character
         local ownHum = ownChar and ownChar:FindFirstChildOfClass("Humanoid")
@@ -1489,10 +1617,12 @@ do
         circle.Position = UDim2.fromOffset(camera.ViewportSize.X / 2 - inset.X, camera.ViewportSize.Y / 2 - inset.Y)
         aim.elapsed = aim.elapsed + dt
         -- Verifica obstrucao antes de mover a camera, em cada quadro.
-        if aim.part and (not eligible(aim.model, aim.owner) or not aim.humanoid or aim.humanoid.Health <= 0
-            or visiblePart(camera, aim.model, aim.part, true) == nil) then
-            clearTarget()
-            updateUI()
+        if aim.part then
+            local reason
+            if not eligible(aim.model,aim.owner) or not aim.part:IsDescendantOf(aim.model) then reason="Alvo removido ou filtro alterado"
+            elseif not aim.humanoid or aim.humanoid.Health<=0 then reason="Alvo sem vida"
+            elseif visiblePart(camera,aim.model,aim.part,true)==nil then reason="Alvo obstruido" end
+            if reason then clearTarget(reason); updateUI() end
         end
         -- Digitar pausa a camera, mas nao troca nem descarta um alvo ainda visivel.
         if UserInputService:GetFocusedTextBox() then return end
@@ -1510,7 +1640,13 @@ do
                 camera.CFrame = camera.CFrame:Lerp(desired, alpha)
             end
         end
+    end
+    RunService:BindToRenderStep(renderName,Enum.RenderPriority.Camera.Value+1,function(dt)
+        if not HUD.alive then return end
+        local ok,err=pcall(renderAim,dt)
+        if not ok then clearTarget("Falha na mira"); HUD.report("Mira",err) end
     end)
+    gui.Destroying:Connect(function() RunService:UnbindFromRenderStep(renderName) end)
     updateUI()
 end
 
@@ -1527,7 +1663,7 @@ HUD.connect(RunService.RenderStepped, function(dt)
             -- CALCULA O LIMITE BASEADO NA SUA VIDA MÁXIMA
             local limite = hum.MaxHealth * (autoSafePercent / 100)
 
-            if hum.Health > limite and emFuga == true then
+            if hum.Health >= math.min(hum.MaxHealth,limite+hum.MaxHealth*0.1) and emFuga == true then
                 emFuga = false
             end
             if hum.Health <= limite and emFuga == false then
@@ -1543,69 +1679,70 @@ HUD.connect(RunService.RenderStepped, function(dt)
         end
     end
 -- ================= AUTO FARM =================
-local now = os.clock()
-local farmCanMove = autoFarmEnabled and not HUD.farmPaused and not HUD.travelActive and not HUD.seaBusy and not HUD.flying and not emFuga and now >= HUD.manualHold
+local now=os.clock()
+HUD.safeActive=emFuga
+local farmCanMove=autoFarmEnabled and HUD.activity()=="LIVRE"
 if farmCanMove then
-    local enemies = workspace:FindFirstChild("Enemies")
-    local function validTarget(npc)
-        if not npc or not enemies or npc.Parent ~= enemies then return false end
-        local targetHum = npc:FindFirstChildOfClass("Humanoid")
-        local targetRoot = npc:FindFirstChild("HumanoidRootPart")
-        return targetHum and targetRoot and targetHum.Health > 0
-            and (targetRoot.Position-root.Position).Magnitude <= HUD.farmRadius
-            and (HUD.farmFilter == "" or string.find(string.lower(npc.Name),HUD.farmFilter,1,true) ~= nil)
-    end
-    if not validTarget(farmTarget) then
-        farmTarget = nil
-        if enemies and now >= HUD.farmSearchAt then
-            HUD.farmSearchAt = now + 0.4
-            local nearest = HUD.farmRadius
-            for _, npc in ipairs(enemies:GetChildren()) do
-                if validTarget(npc) then
-                    local distance = (npc.HumanoidRootPart.Position-root.Position).Magnitude
-                    if distance <= nearest then nearest, farmTarget = distance, npc end
+    if not HUD.validFarmTarget(farmTarget,root,now,HUD.farmRadius) then
+        farmTarget=nil; HUD.progress=nil
+        if now>=HUD.farmSearchAt then
+            HUD.farmSearchAt=now+0.4
+            local enemies=workspace:FindFirstChild("Enemies")
+            local nearest=HUD.farmRadius
+            if enemies then
+                for _,npc in ipairs(enemies:GetChildren()) do
+                    if HUD.validFarmTarget(npc,root,now,HUD.farmRadius) then
+                        local distance=(npc.HumanoidRootPart.Position-root.Position).Magnitude
+                        if distance<nearest then nearest=distance; farmTarget=npc end
+                    end
                 end
             end
         end
     end
     if farmTarget then
-        local targetRoot = farmTarget.HumanoidRootPart
-        local offset = Vector3.new(0,farmHeight,farmDistance)
-        if not HUD.manualFarmHeight then
-            local size = targetRoot == HUD.hitboxPart and HUD.hitboxOriginal.size or targetRoot.Size
-            local limit = math.max(1,math.min(size.X,size.Y,size.Z)*0.5 + HUD.attackReach*0.8)
-            if offset.Magnitude > limit then offset = offset.Unit * limit end
-        end
-        root.CFrame = CFrame.new(targetRoot.Position + offset,targetRoot.Position)
-        HUD.applyHitbox(farmTarget)
-        local tool = char:FindFirstChildOfClass("Tool")
-        if not tool and HUD.autoEquip and now >= (HUD.equipAt or 0) then
-            HUD.equipAt = now + 1
-            local backpack = player:FindFirstChildOfClass("Backpack")
-            if backpack then
-                for _, candidate in ipairs(backpack:GetChildren()) do
-                    if candidate:IsA("Tool") and (candidate.ToolTip == "Melee" or candidate.ToolTip == "Sword") then
-                        hum:EquipTool(candidate)
-                        tool = candidate
-                        break
+        local recovery=HUD.observeProgress(farmTarget,now)
+        if (HUD.farmIgnored[farmTarget] or 0)>now then
+            HUD.restoreHitbox(); farmTarget=nil
+            HUD.setText(HUD.farmStatus,recovery)
+        else
+            local targetRoot=farmTarget.HumanoidRootPart
+            if now>=HUD.moveAt then
+                HUD.moveAt=now+0.1
+                local offset=Vector3.new(0,farmHeight,farmDistance)
+                if not HUD.manualFarmHeight then
+                    local size=targetRoot==HUD.hitboxPart and HUD.hitboxOriginal.size or targetRoot.Size
+                    local limit=math.max(1,math.min(size.X,size.Y,size.Z)*0.5+HUD.attackReach*0.7)
+                    if offset.Magnitude>limit then offset=offset.Unit*limit end
+                end
+                if HUD.progress and HUD.progress.retries>0 then offset=Vector3.new(offset.Z,offset.Y,0) end
+                local point=targetRoot.Position+offset
+                local params=RaycastParams.new()
+                params.FilterType=Enum.RaycastFilterType.Exclude
+                params.FilterDescendantsInstances={char,farmTarget}
+                params.RespectCanCollide=true
+                local obstruction=workspace:Raycast(targetRoot.Position,point-targetRoot.Position,params)
+                if not obstruction then
+                    local far=HUD.bodyDistance(farmTarget,root.Position)>math.max(0.5,HUD.attackReach-0.5)
+                    if recovery or far or (HUD.manualFarmHeight and (point-root.Position).Magnitude>2) then
+                        root.CFrame=CFrame.lookAt(point,targetRoot.Position)
+                    elseif (targetRoot.Position-root.Position).Magnitude>0.01 then
+                        local direction=(targetRoot.Position-root.Position).Unit
+                        if root.CFrame.LookVector:Dot(direction)<0.95 then root.CFrame=CFrame.lookAt(root.Position,targetRoot.Position) end
                     end
                 end
             end
+            HUD.applyHitbox(farmTarget)
+            local tool=HUD.pickWeapon(char,hum,now)
+            HUD.setText(HUD.farmStatus,recovery or HUD.tryAttack(farmTarget,tool,root,now,fastAttackEnabled))
         end
-        HUD.farmStatus.Text = HUD.tryAttack(farmTarget,tool,root,now,fastAttackEnabled)
-    else
-        HUD.restoreHitbox()
-        HUD.farmStatus.Text = "Procurando NPC vivo no raio e filtro escolhidos…"
-    end
-elseif not autoFarmEnabled then
-    if not HUD.autoNear then HUD.restoreHitbox() end
-    if not HUD.autoNear then HUD.farmStatus.Text = "Auto farm desligado." end
-elseif HUD.farmPaused then
-    HUD.restoreHitbox()
-    HUD.farmStatus.Text = "Farm pausado pela viagem. Use Retomar farm."
+    else HUD.restoreHitbox(); HUD.setText(HUD.farmStatus,"Procurando NPC valido no raio e filtro...") end
 else
-    HUD.restoreHitbox()
-    HUD.farmStatus.Text = "Farm aguardando movimento manual, voo ou Auto Safe."
+    HUD.progress=nil
+    if autoFarmEnabled or not HUD.autoNear then HUD.restoreHitbox() end
+    if autoFarmEnabled then
+        local _,reason=HUD.activity()
+        HUD.setText(HUD.farmStatus,"Farm pausado: "..reason)
+    elseif not HUD.autoNear then HUD.setText(HUD.farmStatus,"Auto farm desligado.") end
 end
 
     if tpSpeed > 0 and hum.MoveDirection.Magnitude > 0 and not HUD.travelActive and not HUD.seaBusy and not HUD.flying and not farmCanMove and not emFuga and now >= HUD.manualHold then
@@ -1654,7 +1791,7 @@ do
         local token = scanToken
         if not enabled then clearFruitESP(); return end
         -- Uma busca cancelável por ativação, distribuída entre quadros.
-        task.spawn(function()
+        HUD.startJob(function()
             local pending = {workspace}
             local processed = 0
             while #pending > 0 and HUD.alive and fruitESPEnabled and token == scanToken do
@@ -1778,7 +1915,7 @@ tweenOpen:Play()
 -- TECLADO (Botão G)
 HUD.connect(UserInputService.InputBegan, function(input, gp)
 	if gp then return end
-	if input.KeyCode == Enum.KeyCode.G then
+	if input.KeyCode == Enum.KeyCode[HUD.keys.menu] then
 		if busy then return end
 		busy = true
 
@@ -1789,6 +1926,8 @@ HUD.connect(UserInputService.InputBegan, function(input, gp)
 			menuOpen = false
 		else
 			frame.Visible = true
+			tweenOpen:Cancel()
+            tweenOpen=TweenService:Create(frame,TweenInfo.new(0),{Size=OPEN_SIZE,BackgroundTransparency=OPEN_TRANSP})
 			tweenOpen:Play()
 			menuOpen = true
 		end
@@ -1904,7 +2043,7 @@ do
     clear.BackgroundColor3 = Theme.Second
     clear.BackgroundTransparency = 0.2
     clear.BorderSizePixel = 0
-    clear.Text = "LIMPAR SILHUETA DO INICIO DO VOO"
+    clear.Text = "Limpar silhueta do início do voo"
     clear.TextColor3 = Theme.Text
     clear.Font = Enum.Font.GothamMedium
     clear.TextSize = 12
@@ -2020,7 +2159,7 @@ HUD.connect(UserInputService.InputBegan, function(input, gp)
     if gp then return end
 
     -- Verifica se a tecla pressionada é o B
-    if input.KeyCode == Enum.KeyCode.B then
+    if input.KeyCode == Enum.KeyCode[HUD.keys.cursor] then
         local char = player.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -2096,7 +2235,7 @@ do
     roundUI(healthFill, 2)
     local resources = textCard(tabOverview, "Beli: —   |   Fragmentos: —", 62)
     criarSecao("ATALHOS", 0, tabOverview)
-    textCard(tabOverview, "G  ·  Abrir / recolher menu\nF  ·  Mira jogadores / H  ·  Mira NPCs\nB  ·  Teleporte no cursor\nAlt + clique  ·  Alternar voo", 110)
+    local shortcutCard = textCard(tabOverview, "G  ·  Abrir / recolher menu\nF  ·  Mira jogadores / H  ·  Mira NPCs\nB  ·  Teleporte no cursor\nAlt + clique  ·  Alternar voo", 110)
     textCard(tabOverview, "Movimento: clique ou arraste as barras. Você também pode digitar um valor. O pulo começa em 60.", 78)
     action(tabOverview, "Centralizar janela", function() frame.Position = UDim2.fromScale(0.5, 0.5) end)
 
@@ -2108,13 +2247,14 @@ do
     footer.TextSize = 11
     footer.Font = Enum.Font.GothamMedium
     footer.TextColor3 = Color3.fromRGB(156, 161, 177)
-    footer.Text = "PUDIM HUB  /  V010"
+    HUD.setText(footer,"PUDIM HUB  /  V023")
     local sessionStart = os.clock()
     local elapsed, frames = 0, 0
     HUD.connect(RunService.Heartbeat, function(dt)
         elapsed += dt
         frames += 1
-        if elapsed < 0.5 then return end
+        if elapsed < 1.5 then return end
+        HUD.setText(shortcutCard,HUD.keys.menu..": menu / "..HUD.keys.players..": mira jogadores / "..HUD.keys.npcs..": mira NPCs\n"..HUD.keys.cursor..": TP cursor / Alt + clique: voo")
         local fps = math.floor(frames / elapsed + 0.5)
         elapsed, frames = 0, 0
         footer.Visible = HUD.status
@@ -2126,14 +2266,14 @@ do
         local character = player.Character
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         local team = player.Team and player.Team.Name or "Sem time"
-        profile.Text = player.DisplayName .. "  (@" .. player.Name .. ")\nNível " .. stat("Level") .. "  /  " .. team
-        resources.Text = "Beli: " .. stat("Beli") .. "\nFragmentos: " .. stat("Fragments")
+        HUD.setText(profile,player.DisplayName .. "  (@" .. player.Name .. ")\nNível " .. stat("Level") .. "  /  " .. team)
+        HUD.setText(resources,"Beli: " .. stat("Beli") .. "\nFragmentos: " .. stat("Fragments"))
         local ratio = humanoid and math.clamp(humanoid.Health / math.max(1, humanoid.MaxHealth), 0, 1) or 0
-        health.Text = humanoid and ("Vida  " .. math.floor(humanoid.Health) .. " / " .. math.floor(humanoid.MaxHealth)) or "Aguardando respawn…"
+        HUD.setText(health,humanoid and ("Vida  " .. math.floor(humanoid.Health) .. " / " .. math.floor(humanoid.MaxHealth)) or "Aguardando respawn…")
         healthFill.Size = UDim2.fromScale(ratio, 1)
         healthFill.BackgroundColor3 = ratio < 0.3 and Theme.Red or Color3.fromRGB(86,205,159)
         local seconds = math.floor(os.clock() - sessionStart)
-        footer.Text = string.format("%d FPS  /  %d jogadores  /  %02d:%02d nesta sessão  /  G: menu", fps, #Players:GetPlayers(), math.floor(seconds / 60), seconds % 60)
+        HUD.setText(footer,string.format("%d FPS  /  %d jogadores  /  %02d:%02d nesta sessão  /  %s: menu", fps, #Players:GetPlayers(), math.floor(seconds / 60), seconds % 60,HUD.keys.menu))
     end)
 
     -- Busca somente na aba atual, sem modificar os valores dos controles.
@@ -2207,13 +2347,14 @@ do
     end)
     action(tabSettings, "Mostrar / ocultar informações de sessão", function()
         HUD.status = not HUD.status
+        if HUD.preferencesChanged then HUD.preferencesChanged() end
         footer.Visible = HUD.status
     end)
     action(tabSettings, "Centralizar janela", function() frame.Position = UDim2.fromScale(0.5, 0.5) end)
     criarSecao("PREFERÊNCIAS", 0, tabSettings)
-    local feedback = textCard(tabSettings, "Salve os valores dos sliders e a escala. Os botões de funções não são ativados ao carregar.", 88)
+    local feedback = textCard(tabSettings, "V023 salva preferencias automaticamente por conta. Abaixo: importar/exportar o arquivo antigo. Funcoes de jogo iniciam desligadas.", 88)
     local settingsFile = "PudimHub_UI_v005.json"
-    action(tabSettings, "Salvar preferências", function()
+    action(tabSettings, "Exportar preferencias antigas", function()
         if type(writefile) ~= "function" then feedback.Text = "Este ambiente não oferece salvamento em arquivo."; return end
         local values = {}
         for key, control in pairs(HUD.sliders) do values[key] = control.get() end
@@ -2222,7 +2363,7 @@ do
         end)
         feedback.Text = ok and "Preferências salvas. Use Carregar para aplicá-las." or "Não foi possível salvar as preferências."
     end)
-    action(tabSettings, "Carregar preferências", function()
+    action(tabSettings, "Importar preferencias antigas", function()
         if type(readfile) ~= "function" then feedback.Text = "Este ambiente não oferece leitura de arquivo."; return end
         local ok, saved = pcall(function() return HttpService:JSONDecode(readfile(settingsFile)) end)
         if not ok or type(saved) ~= "table" or saved.version ~= 1 or type(saved.values) ~= "table" then
@@ -2234,11 +2375,14 @@ do
             if control and type(value) == "number" and value == value and math.abs(value) < math.huge then control.set(value) end
         end
         if type(saved.status) == "boolean" then HUD.status = saved.status end
-        feedback.Text = "Preferências carregadas."
+        if HUD.preferencesChanged then HUD.preferencesChanged() end
+        feedback.Text = "Preferências antigas importadas para o autosave."
     end)
     action(tabSettings, "Restaurar TODOS os controles", function()
         -- Executar callbacks reais e atualizar tambem a aparencia dos botoes.
         if HUD.cancelServerSearch then HUD.cancelServerSearch() end
+        if HUD.resetExtras then HUD.resetExtras() end
+        if HUD.resetCombatSettings then HUD.resetCombatSettings() end
         for _, control in ipairs(HUD.toggles) do control.set(control.default, true) end
         if HUD.resetAim then HUD.resetAim() end
         if HUD.stopFly then HUD.stopFly() end
@@ -2253,7 +2397,7 @@ do
         if HUD.farmFilterInput then HUD.farmFilterInput.Text = "" end
         farmTarget = nil
         HUD.farmSearchAt, HUD.farmAttackAt, HUD.manualHold = 0, 0, 0
-        HUD.farmStatus.Text = "Auto farm desligado."
+        HUD.setText(HUD.farmStatus,"Auto farm desligado.")
         if HUD.resetSeaSelection then HUD.resetSeaSelection() end
         HUD.status = true
         footer.Visible = true
@@ -2325,37 +2469,49 @@ do
     end
 end
 
--- Ataque próximo sem mover o personagem. Compartilha o relógio do farm.
+-- Ataque proximo: captura limitada, retencao do alvo e sem movimento.
 do
-    local elapsed = 0
+    local elapsed=0
     HUD.connect(RunService.Heartbeat,function(dt)
-        elapsed += dt
-        if elapsed < 0.05 then return end
-        elapsed = 0
-        if autoFarmEnabled or not HUD.autoNear then return end
-        if HUD.travelActive or HUD.seaBusy or HUD.flying or emFuga or os.clock() < HUD.manualHold then
-            HUD.restoreHitbox()
-            return
+        elapsed=elapsed+dt
+        if elapsed<0.05 then return end
+        elapsed=0
+        if autoFarmEnabled or not HUD.autoNear then HUD.nearTarget=nil; return end
+        HUD.safeActive=emFuga
+        if HUD.activity()~="LIVRE" then HUD.progress=nil; HUD.restoreHitbox(); return end
+        local char=player.Character
+        local root=char and char:FindFirstChild("HumanoidRootPart")
+        local hum=char and char:FindFirstChildOfClass("Humanoid")
+        if not root or not hum or hum.Health<=0 then HUD.nearTarget=nil; HUD.progress=nil; return end
+        local now=os.clock()
+        local target=HUD.nearTarget
+        if not HUD.validFarmTarget(target,root,now,100) or HUD.bodyDistance(target,root.Position)>HUD.attackReach then
+            target=nil; HUD.progress=nil
         end
-        local character = player.Character
-        local root = character and character:FindFirstChild("HumanoidRootPart")
-        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        local tool = character and character:FindFirstChildOfClass("Tool")
-        local enemies = workspace:FindFirstChild("Enemies")
-        if not root or not humanoid or humanoid.Health <= 0 or not enemies or not HUD.isCombatTool(tool) then HUD.restoreHitbox(); return end
-        local target, closest = nil, HUD.attackReach
-        for _, npc in ipairs(enemies:GetChildren()) do
-            local targetHum = npc:FindFirstChildOfClass("Humanoid")
-            local targetRoot = npc:FindFirstChild("HumanoidRootPart")
-            if targetHum and targetRoot and targetHum.Health > 0 and (targetRoot.Position-root.Position).Magnitude < 100
-                and (HUD.farmFilter == "" or string.find(string.lower(npc.Name),HUD.farmFilter,1,true)) then
-                local distance = HUD.bodyDistance(npc,root.Position)
-                if distance <= closest then target, closest = npc, distance end
+        if not target and now>=HUD.nearSearchAt then
+            HUD.nearSearchAt=now+0.25
+            local enemies=workspace:FindFirstChild("Enemies")
+            local closest=HUD.attackReach
+            if enemies then
+                for _,npc in ipairs(enemies:GetChildren()) do
+                    if HUD.validFarmTarget(npc,root,now,100) then
+                        local distance=HUD.bodyDistance(npc,root.Position)
+                        if distance<=closest then target=npc; closest=distance end
+                    end
+                end
             end
         end
+        HUD.nearTarget=target
         HUD.applyHitbox(target)
-        if target then HUD.farmStatus.Text = HUD.tryAttack(target,tool,root,os.clock(),true)
-        else HUD.farmStatus.Text = "Ataque por proximidade: aguardando NPC em alcance." end
+        if target then
+            local result=HUD.observeProgress(target,now)
+            if (HUD.farmIgnored[target] or 0)>now then HUD.nearTarget=nil; HUD.restoreHitbox()
+            else
+                if result then result="Vida do alvo sem reducao; verificando novamente sem mover." end
+                result=result or HUD.tryAttack(target,HUD.pickWeapon(char,hum,now),root,now,true)
+            end
+            HUD.setText(HUD.farmStatus,result)
+        else HUD.setText(HUD.farmStatus,"Ataque proximo: aguardando NPC em alcance.") end
     end)
 end
 
@@ -2421,7 +2577,7 @@ do
                 finish("Tempo limite. A entrada nao foi confirmada; aguarde antes de tentar outra vez.")
             end
         end)
-        task.spawn(function()
+        HUD.startJob(function()
             local ok, err = pcall(function()
                 local cursor, candidates, seen = nil, {}, {}
                 for page = 1, 3 do
@@ -2453,6 +2609,7 @@ do
                 if HUD.stopFly then HUD.stopFly() end
                 HUD.farmPaused = true
                 status.Text = "Solicitando entrada: " .. chosen.playing .. "/" .. chosen.maxPlayers .. " jogadores. Regiao desconhecida."
+                if HUD.savePreferences then HUD.savePreferences() end
                 TeleportService:TeleportToPlaceInstance(game.PlaceId, chosen.id, player)
             end)
             if not ok and active(id) then finish("Falha: " .. tostring(err)) end
@@ -2471,8 +2628,8 @@ do
         button.Activated:Connect(function() start(mode) end)
         table.insert(buttons, button)
     end
-    addButton("SERVIDOR VAZIO / MENOS CHEIO", "EMPTY")
-    addButton("TROCAR DE SERVIDOR", "OTHER")
+    addButton("Servidor vazio / menos cheio", "EMPTY")
+    addButton("Trocar de servidor", "OTHER")
     HUD.connect(TeleportService.TeleportInitFailed, function(who, result, message, placeId, options)
         if who ~= player or not busy or not pending or placeId ~= game.PlaceId then return end
         if options and options.ServerInstanceId ~= "" and options.ServerInstanceId ~= pending then return end
@@ -2480,4 +2637,346 @@ do
         finish("Entrada recusada: " .. tostring(message) .. ". Clique novamente para tentar outro servidor.")
     end)
     gui.Destroying:Connect(function() token = token + 1; busy = false; HUD.serverBusy = false end)
+end
+
+-- Interface e armazenamento: implementacao propria, sem bibliotecas remotas.
+do
+    local function label(parent, value, height)
+        local item=Instance.new("TextLabel",parent)
+        item.Size=UDim2.new(1,0,0,height or 52)
+        item.BackgroundColor3=Theme.Second
+        item.BackgroundTransparency=0.2
+        item.TextColor3=Theme.Text
+        item.Font=Enum.Font.Gotham
+        item.TextSize=12
+        item.TextWrapped=true
+        item.Text=value
+        roundUI(item,8)
+        return item
+    end
+    local function button(parent,value,callback)
+        local item=Instance.new("TextButton",parent)
+        item.Size=UDim2.new(1,0,0,38)
+        item.BackgroundColor3=Theme.Button
+        item.TextColor3=Theme.Text
+        item.Font=Enum.Font.GothamMedium
+        item.TextSize=12
+        item.Text=value
+        roundUI(item,8)
+        HUD.connect(item.Activated,callback)
+        return item
+    end
+    criarSecao("PUDIMHUB / V023",0,tabSistema)
+    local activity=label(tabSistema,"Pronto",40)
+    local diagnostics=label(tabSistema,HUD.errorText,70)
+    local storage=label(tabSettings,HUD.storageText,55)
+    HUD.accent=1
+    local function accent(index)
+        local oldRed,oldDark=Theme.Red,Theme.DarkRed
+        HUD.accent=index==2 and 2 or 1
+        Theme.Red=HUD.accent==2 and Color3.fromRGB(210,22,65) or Color3.fromRGB(240,30,55)
+        Theme.DarkRed=HUD.accent==2 and Color3.fromRGB(75,8,30) or Color3.fromRGB(95,10,25)
+        for _,item in ipairs(frame:GetDescendants()) do
+            if item:IsA("GuiObject") then
+                if item.BackgroundColor3==oldRed then item.BackgroundColor3=Theme.Red
+                elseif item.BackgroundColor3==oldDark then item.BackgroundColor3=Theme.DarkRed end
+                if item:IsA("TextLabel") or item:IsA("TextButton") or item:IsA("TextBox") then
+                    if item.TextColor3==oldRed then item.TextColor3=Theme.Red end
+                end
+            elseif item:IsA("UIStroke") and item.Color==oldRed then item.Color=Theme.Red end
+        end
+    end
+    local accentButton=button(tabSettings,"",function()
+        accent(HUD.accent==1 and 2 or 1)
+        if HUD.preferencesChanged then HUD.preferencesChanged() end
+    end)
+    local watchButton
+    watchButton=button(tabTeleport,"",function()
+        HUD.watchEvents=not HUD.watchEvents
+        if HUD.preferencesChanged then HUD.preferencesChanged() end
+    end)
+    local eventLabel=label(tabTeleport,"Observador desligado. Somente objetos carregados neste cliente.",66)
+    local keyInputs={}
+    criarSecao("ATALHOS PERSONALIZADOS",0,tabSettings)
+    for _,entry in ipairs({{"menu","Menu"},{"players","Mira jogadores"},{"npcs","Mira NPCs"},{"cursor","TP cursor"}}) do
+        local id,caption=entry[1],entry[2]
+        local box=Instance.new("TextBox",tabSettings)
+        box.Size=UDim2.new(1,0,0,36)
+        box.BackgroundColor3=Theme.Second
+        box.TextColor3=Theme.Text
+        box.Font=Enum.Font.Gotham
+        box.TextSize=12
+        box.ClearTextOnFocus=true
+        box.Text=caption..": "..HUD.keys[id]
+        box.PlaceholderText=caption..": digite uma letra"
+        roundUI(box,8)
+        keyInputs[id]={box=box,caption=caption}
+        HUD.connect(box.FocusLost,function()
+            local key=box.Text:upper():match("^%s*([A-Z])%s*$")
+            local allowed=key and not string.find("WASD",key,1,true)
+            for other,value in pairs(HUD.keys) do if other~=id and value==key then allowed=false end end
+            if allowed then HUD.keys[id]=key; if HUD.preferencesChanged then HUD.preferencesChanged() end
+            else HUD.report("Atalho","Use uma letra livre; W/A/S/D ficam reservados para movimento.") end
+            box.Text=caption..": "..HUD.keys[id]
+        end)
+    end
+    criarSlider("Transparencia do painel %",0,65,18,0,tabSettings,function(value)
+        OPEN_TRANSP=value/100
+        frame.BackgroundTransparency=OPEN_TRANSP
+    end)
+    local file="PudimHub_"..tostring(player.UserId).."_v019.json"
+    local enabled=type(readfile)=="function" and type(writefile)=="function"
+    local ready,dirty,due,revision=false,false,0,0
+    local writing=false
+    local function finite(n) return type(n)=="number" and n==n and math.abs(n)<1e8 end
+    function HUD.preferencesChanged()
+        if not ready then return end
+        revision=revision+1; dirty=true; due=os.clock()+0.8
+    end
+    local function snapshot()
+        local values={}
+        for key,control in pairs(HUD.sliders) do values[key]=control.get() end
+        local p=frame.Position
+        return {version=1,values=values,keys=HUD.keys,favorites=HUD.favorites,
+            watchEvents=HUD.watchEvents,status=HUD.status,filter=HUD.farmFilter,accent=HUD.accent,
+            weapon=HUD.weaponName,aimFilter=HUD.aimFilter,aimPriority=HUD.aimPriority,
+            position={p.X.Scale,p.X.Offset,p.Y.Scale,p.Y.Offset}}
+    end
+    local function save()
+        if not enabled or not dirty or writing then return end
+        writing=true
+        local current=revision
+        local ok,err=pcall(function() writefile(file,HttpService:JSONEncode(snapshot())) end)
+        writing=false
+        if ok then dirty=revision~=current; HUD.storageText="Preferencias salvas automaticamente • "..os.date("%H:%M:%S")
+        else due=os.clock()+5; HUD.storageText="Falha ao salvar; nova tentativa em 5s."; HUD.report("Arquivo",err) end
+    end
+    HUD.savePreferences=save
+    local function apply(saved)
+        if type(saved)~="table" or saved.version~=1 or type(saved.values)~="table" then return false end
+        for key,value in pairs(saved.values) do
+            local control=HUD.sliders[key]
+            if control and finite(value) then control.set(value) end
+        end
+        if type(saved.keys)=="table" then
+            local candidate,seen={},{}
+            for id,default in pairs(HUD.keys) do
+                local key=saved.keys[id]
+                if type(key)~="string" or not key:match("^[A-Z]$") or key:find("[WASD]") or seen[key] then candidate=nil; break end
+                candidate[id]=key; seen[key]=true
+            end
+            if candidate then HUD.keys=candidate end
+        end
+        if type(saved.favorites)=="table" then
+            for sea,entries in pairs(HUD.islandsBySea) do
+                for _,entry in ipairs(entries) do
+                    local key=tostring(sea)..":"..entry.nome
+                    if saved.favorites[key]==true then HUD.favorites[key]=true end
+                end
+            end
+        end
+        HUD.light=true; HUD.watchEvents=saved.watchEvents==true
+        accent(saved.accent)
+        HUD.status=saved.status~=false
+        if type(saved.filter)=="string" and #saved.filter<=100 then
+            HUD.farmFilter=saved.filter
+            if HUD.farmFilterInput then HUD.farmFilterInput.Text=saved.filter end
+        end
+        if type(saved.weapon)=="string" and #saved.weapon<=100 then HUD.weaponName=saved.weapon end
+        if type(saved.aimFilter)=="string" and #saved.aimFilter<=100 then HUD.aimFilter=saved.aimFilter:lower() end
+        HUD.aimPriority=saved.aimPriority=="Distancia" and "Distancia" or "Tela"
+        local p=saved.position
+        if type(p)=="table" and finite(p[1]) and finite(p[2]) and finite(p[3]) and finite(p[4]) then
+            frame.Position=UDim2.new(math.clamp(p[1],0,1),math.clamp(p[2],-2000,2000),math.clamp(p[3],0,1),math.clamp(p[4],-2000,2000))
+        end
+        return true
+    end
+    if enabled then
+        local exists=true
+        if type(isfile)=="function" then local ok,value=pcall(isfile,file); if ok then exists=value end end
+        if exists then
+            local ok,raw=pcall(readfile,file)
+            if ok then
+                local decoded,saved=pcall(function() return HttpService:JSONDecode(raw) end)
+                local applied,valid=false,false
+                if decoded then applied,valid=pcall(apply,saved) end
+                if not applied or not valid then enabled=false; HUD.storageText="Arquivo invalido preservado; autosave desativado."
+                else HUD.storageText="Preferencias da conta carregadas." end
+            else HUD.storageText="Autosave pronto; sera criado ao alterar preferencias." end
+        else HUD.storageText="Autosave pronto; sera criado ao alterar preferencias." end
+    else HUD.storageText="Sem readfile/writefile: preferencias so nesta execucao." end
+    for id,item in pairs(keyInputs) do item.box.Text=item.caption..": "..HUD.keys[id] end
+    tweenOpen:Cancel()
+    frame.Size=OPEN_SIZE
+    frame.BackgroundTransparency=OPEN_TRANSP
+    ready=true
+    local function clampWindow()
+        local cam=workspace.CurrentCamera
+        if not cam then return end
+        local size=cam.ViewportSize
+        local half=Vector2.new(300*hudScale.Scale,300*hudScale.Scale)
+        local p=frame.Position
+        frame.Position=UDim2.fromOffset(math.clamp(p.X.Scale*size.X+p.X.Offset,half.X,math.max(half.X,size.X-half.X)),
+            math.clamp(p.Y.Scale*size.Y+p.Y.Offset,half.Y,math.max(half.Y,size.Y-half.Y-40)))
+    end
+    clampWindow()
+    HUD.connect(frame:GetPropertyChangedSignal("Position"),HUD.preferencesChanged)
+    HUD.connect(UserInputService.InputEnded,function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then clampWindow() end
+    end)
+    HUD.resetExtras=function()
+        HUD.keys={menu="G",players="F",npcs="H",cursor="B"}
+        HUD.favorites={}; HUD.light=true; HUD.watchEvents=false
+        accent(1)
+        for id,item in pairs(keyInputs) do item.box.Text=item.caption..": "..HUD.keys[id] end
+        if HUD.refreshIslands then HUD.refreshIslands() end
+        HUD.preferencesChanged()
+    end
+    local elapsed,eventElapsed=0,0
+    HUD.connect(RunService.Heartbeat,function(dt)
+        elapsed=elapsed+dt; eventElapsed=eventElapsed+dt
+        if elapsed<0.5 then return end
+        elapsed=0
+        if dirty and os.clock()>=due then save() end
+        local _,description=HUD.activity()
+        HUD.setText(activity,description)
+        HUD.setText(diagnostics,HUD.errorText)
+        HUD.setText(storage,HUD.storageText)
+        HUD.setText(accentButton,"Cor do HUD: "..(HUD.accent==1 and "Vermelho clássico" or "Rubi"))
+        HUD.setText(watchButton,"Observar eventos carregados: "..(HUD.watchEvents and "Sim" or "Não"))
+        shadow.Visible=false
+        if not HUD.watchEvents then HUD.setText(eventLabel,"Observador desligado. Somente objetos carregados neste cliente.")
+        elseif eventElapsed>=3 then
+            eventElapsed=0
+            local origin=workspace:FindFirstChild("_WorldOrigin")
+            local locations=origin and origin:FindFirstChild("Locations")
+            local map=workspace:FindFirstChild("Map")
+            local found={}
+            for _,entry in ipairs(HUD.islandsBySea[HUD.currentSea] or {}) do
+                if entry.event then
+                    for _,alias in ipairs(entry.aliases or {entry.nome}) do
+                        if (locations and locations:FindFirstChild(alias)) or (map and map:FindFirstChild(alias)) then
+                            table.insert(found,entry.nome); break
+                        end
+                    end
+                end
+            end
+            HUD.setText(eventLabel,not HUD.currentSea and "Escolha o Sea para observar eventos." or #found>0 and "Carregados: "..table.concat(found,", ") or "Nenhum evento observado localmente. Isso nao confirma ausencia no servidor.")
+        end
+    end)
+    gui.Destroying:Connect(function()
+        save()
+        for job in pairs(HUD.jobs) do pcall(task.cancel,job) end
+        table.clear(HUD.jobs)
+    end)
+end
+
+-- Estilo compartilhado. Atua apenas nos controles deste HUD.
+do
+    local styled=setmetatable({}, {__mode="k"})
+    local function style(button)
+        if not HUD.alive or not button:IsDescendantOf(frame) or not button:IsA("TextButton") or styled[button] then return end
+        -- Area invisivel para arrastar sliders: conservar a geometria e transparencia.
+        if button.BackgroundTransparency>=1 and button.Text=="" then return end
+        styled[button]=true
+        button.BorderSizePixel=0
+        button.AutoButtonColor=false
+        button.Font=Enum.Font.GothamMedium
+        if button.Size.X.Scale>0 and button.Size.Y.Scale==0 and button.Size.Y.Offset>=38 then
+            button.Size=UDim2.new(button.Size.X.Scale,button.Size.X.Offset,0,38)
+            button.TextSize=12
+            button.TextWrapped=true
+        end
+        local teamButton=button==marine or button==pirate
+        button.BackgroundTransparency=teamButton and 0.72 or 0.12
+        -- As cores de selecao, alerta e mira continuam sob controle das funcoes.
+        local selected=tabButtons[currentTab]==button or button.Text:find("[x]",1,true)
+            or (button.Text:find("Ligado",1,true) and not button.Text:find("Desligado",1,true))
+        if not selected and (button.BackgroundColor3==Theme.Second or button.BackgroundColor3==Theme.DarkRed) then
+            button.BackgroundColor3=Theme.Button
+        end
+        local corner=button:FindFirstChildOfClass("UICorner")
+        if not corner then corner=Instance.new("UICorner",button) end
+        corner.CornerRadius=UDim.new(0,8)
+        local edge=button:FindFirstChildOfClass("UIStroke")
+        if not edge then edge=Instance.new("UIStroke",button) end
+        edge.ApplyStrokeMode=Enum.ApplyStrokeMode.Border
+        edge.Thickness=1
+        edge.Color=teamButton and button.BackgroundColor3 or Theme.Red
+        edge.Transparency=0.82
+        local hovering,pressed=false,false
+        local function feedback()
+            edge.Color=teamButton and button.BackgroundColor3 or Theme.Red
+            edge.Transparency=pressed and 0.2 or hovering and 0.45 or 0.82
+        end
+        button.MouseEnter:Connect(function() hovering=true; feedback() end)
+        button.MouseLeave:Connect(function() hovering=false; pressed=false; feedback() end)
+        button.InputBegan:Connect(function(input)
+            if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then pressed=true; feedback() end
+        end)
+        button.InputEnded:Connect(function(input)
+            if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then pressed=false; feedback() end
+        end)
+    end
+    for _,item in ipairs(frame:GetDescendants()) do style(item) end
+    HUD.connect(frame.DescendantAdded,function(item)
+        if item:IsA("TextButton") then task.defer(function() style(item) end) end
+    end)
+end
+
+do
+    local function button(parent,text,callback)
+        local b=Instance.new("TextButton",parent)
+        b.Size=UDim2.new(1,0,0,38); b.BackgroundColor3=Theme.Button
+        b.TextColor3=Theme.Text; b.TextSize=12; b.Font=Enum.Font.GothamMedium
+        b.Text=text; roundUI(b,8); HUD.connect(b.Activated,callback)
+        return b
+    end
+    local weapon
+    local function updateWeapon()
+        weapon.Text="Arma do farm: "..(HUD.weaponName=="" and "Automatica" or HUD.weaponName)
+    end
+    weapon=button(tabFarm,"",function()
+        local names,seen={""},{}
+        local containers={}
+        if player.Character then table.insert(containers,player.Character) end
+        local backpack=player:FindFirstChildOfClass("Backpack")
+        if backpack then table.insert(containers,backpack) end
+        for _,container in ipairs(containers) do
+            for _,tool in ipairs(container:GetChildren()) do
+                if HUD.isCombatTool(tool) and not seen[tool.Name] then
+                    seen[tool.Name]=true; table.insert(names,tool.Name)
+                end
+            end
+        end
+        table.sort(names)
+        local index=table.find(names,HUD.weaponName) or 1
+        HUD.weaponName=names[index%#names+1]
+        HUD.progress=nil; HUD.equipAt=0
+        updateWeapon(); HUD.preferencesChanged()
+    end)
+    updateWeapon()
+    local filter=Instance.new("TextBox",tabAimbot)
+    filter.Size=UDim2.new(1,0,0,38); filter.BackgroundColor3=Theme.Second
+    filter.TextColor3=Theme.Text; filter.Font=Enum.Font.Gotham; filter.TextSize=12
+    filter.PlaceholderText="Filtrar NPC/boss por nome (vazio = todos)"
+    filter.Text=HUD.aimFilter; filter.ClearTextOnFocus=false; roundUI(filter,8)
+    HUD.connect(filter.FocusLost,function()
+        HUD.aimFilter=filter.Text:lower():match("^%s*(.-)%s*$"):sub(1,100)
+        filter.Text=HUD.aimFilter
+        if HUD.clearAimTarget then HUD.clearAimTarget("Filtro alterado") end
+        HUD.preferencesChanged()
+    end)
+    local priority
+    local function updatePriority() priority.Text="Novo alvo: "..(HUD.aimPriority=="Tela" and "Centro da tela" or "Mais perto") end
+    priority=button(tabAimbot,"",function()
+        HUD.aimPriority=HUD.aimPriority=="Tela" and "Distancia" or "Tela"
+        updatePriority(); HUD.preferencesChanged()
+    end)
+    updatePriority()
+    HUD.resetCombatSettings=function()
+        HUD.weaponName=""; HUD.aimFilter=""; HUD.aimPriority="Tela"
+        filter.Text=""; updateWeapon(); updatePriority(); HUD.resetCombatExtras()
+    end
+    HUD.connect(player.CharacterRemoving,function() HUD.resetCombatExtras() end)
 end
