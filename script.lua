@@ -1,4 +1,4 @@
--- PudimHub v026 | Base v025 | ESP de frutas somente texto
+-- PudimHub v027 | Base v026 | Controle de retencao da mira NPC atras de paredes
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/Pudimlinoo/Pudimlinoo-script/main/script.lua"))()
 
 local Players = game:GetService("Players")
@@ -366,7 +366,7 @@ local subtitle = Instance.new("TextLabel", frame)
 subtitle.BackgroundTransparency = 1
 subtitle.Position = UDim2.new(1, -150, 0, 20)
 subtitle.Size = UDim2.fromOffset(130, 24)
-subtitle.Text = "V026  /  BLOX FRUITS"
+subtitle.Text = "V027  /  BLOX FRUITS"
 subtitle.Font = Enum.Font.GothamMedium
 subtitle.TextSize = 11
 subtitle.TextColor3 = Color3.fromRGB(156, 161, 177)
@@ -1463,7 +1463,7 @@ end
 do
     local aim = {mode = nil, part = nil, model = nil, humanoid = nil, owner = nil,
         playerFov = 200, npcFov = 200, distance = 500, smooth = 0,
-        enemiesOnly = false, showFov = true, highlight = true, elapsed = 0}
+        enemiesOnly = false, showFov = true, highlight = true, elapsed = 0, keepNpcBehindWalls = false}
     local green = Color3.fromRGB(55, 235, 130)
     local function clearTarget(reason)
         aim.reason=reason
@@ -1540,6 +1540,9 @@ do
     status.Parent = tabAimbot
     criarBotaoToggle("Jogadores: só inimigos",0,tabAimbot,function(v)
         aim.enemiesOnly = v; clearTarget()
+    end)
+    criarBotaoToggle("Manter alvo NPC atrás de paredes",0,tabAimbot,function(v)
+        aim.keepNpcBehindWalls = v
     end)
     criarBotaoToggle("Ocultar círculo FOV",0,tabAimbot,function(v) aim.showFov = not v end)
     criarBotaoToggle("Ocultar destaque do alvo",0,tabAimbot,function(v)
@@ -1651,15 +1654,16 @@ do
         circle.Size = UDim2.fromOffset(radius * 2, radius * 2)
         circle.Position = UDim2.fromOffset(camera.ViewportSize.X / 2 - inset.X, camera.ViewportSize.Y / 2 - inset.Y)
         aim.elapsed = aim.elapsed + dt
-        -- Verifica obstrucao antes de mover a camera, em cada quadro.
+        -- A opcao de paredes so afeta a retencao do NPC; novos alvos exigem visibilidade.
         if aim.part then
             local reason
             if not eligible(aim.model,aim.owner) or not aim.part:IsDescendantOf(aim.model) then reason="Alvo removido ou filtro alterado"
             elseif not aim.humanoid or aim.humanoid.Health<=0 then reason="Alvo sem vida"
-            elseif visiblePart(camera,aim.model,aim.part,true)==nil then reason="Alvo obstruido" end
+            elseif not (aim.mode=="NPC" and aim.keepNpcBehindWalls)
+                and visiblePart(camera,aim.model,aim.part,true)==nil then reason="Alvo obstruido" end
             if reason then clearTarget(reason); updateUI() end
         end
-        -- Digitar pausa a camera, mas nao troca nem descarta um alvo ainda visivel.
+        -- Digitar pausa a camera, mas nao troca nem descarta um alvo ainda valido.
         if UserInputService:GetFocusedTextBox() then return end
         -- So busca outro alvo quando o anterior deixa de ser valido.
         if aim.elapsed >= 0.1 then
@@ -2319,7 +2323,7 @@ do
     footer.TextSize = 11
     footer.Font = Enum.Font.GothamMedium
     footer.TextColor3 = Color3.fromRGB(156, 161, 177)
-    HUD.setText(footer,"PUDIM HUB  /  V026")
+    HUD.setText(footer,"PUDIM HUB  /  V027")
     local sessionStart = os.clock()
     local elapsed, frames = 0, 0
     HUD.connect(RunService.Heartbeat, function(dt)
@@ -2424,7 +2428,7 @@ do
     end)
     action(tabSettings, "Centralizar janela", function() frame.Position = UDim2.fromScale(0.5, 0.5) end)
     criarSecao("PREFERÊNCIAS", 0, tabSettings)
-    local feedback = textCard(tabSettings, "V026 salva preferencias automaticamente por conta. Abaixo: importar/exportar o arquivo antigo. Funcoes de jogo iniciam desligadas.", 88)
+    local feedback = textCard(tabSettings, "V027 salva preferencias automaticamente por conta. Abaixo: importar/exportar o arquivo antigo. Funcoes de jogo iniciam desligadas.", 88)
     local settingsFile = "PudimHub_UI_v005.json"
     action(tabSettings, "Exportar preferencias antigas", function()
         if type(writefile) ~= "function" then feedback.Text = "Este ambiente não oferece salvamento em arquivo."; return end
@@ -2738,7 +2742,7 @@ do
         HUD.connect(item.Activated,callback)
         return item
     end
-    criarSecao("PUDIMHUB / V026",0,tabSistema)
+    criarSecao("PUDIMHUB / V027",0,tabSistema)
     local activity=label(tabSistema,"Pronto",40)
     local diagnostics=label(tabSistema,HUD.errorText,70)
     local storage=label(tabSettings,HUD.storageText,55)
