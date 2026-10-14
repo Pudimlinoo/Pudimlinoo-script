@@ -1,4 +1,4 @@
--- PudimHub v030 | Base v029 | Corrige texto sobreposto na foto do avatar
+-- PudimHub v033 | Base v032 | Sea manual sem bloqueio por PlaceId e cancelamento unico
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/Pudimlinoo/Pudimlinoo-script/main/script.lua"))()
 
 local Players = game:GetService("Players")
@@ -366,7 +366,7 @@ local subtitle = Instance.new("TextLabel", frame)
 subtitle.BackgroundTransparency = 1
 subtitle.Position = UDim2.new(1, -150, 0, 20)
 subtitle.Size = UDim2.fromOffset(130, 24)
-subtitle.Text = "V030  /  BLOX FRUITS"
+subtitle.Text = "V033  /  BLOX FRUITS"
 subtitle.Font = Enum.Font.GothamMedium
 subtitle.TextSize = 11
 subtitle.TextColor3 = Color3.fromRGB(156, 161, 177)
@@ -1001,9 +1001,9 @@ pirate.MouseButton1Click:Connect(function()
 	setTeam("Pirates")
 end)
 -- ================= TELEPORT =================
--- Seleção manual: nenhum mar escolhido ao abrir.
+-- Nenhum Sea selecionado ao abrir; a lista depende do clique do usuario.
 HUD.currentSea = nil
--- Catalogo v018: ilhas fixas, acessos e eventos. Fontes em PudimHub_v018_notas.md.
+-- Coordenadas herdadas da v030; eventos dependem dos objetos carregados no cliente.
 HUD.islandsBySea = {
     [1] = {
         {nome="Pirate Starter", cf=CFrame.new(1071.2832,16.3085976,1426.86792), aliases={"Pirate Starter"}},
@@ -1078,19 +1078,36 @@ HUD.islandsBySea = {
 criarSecao("TELEPORT / ESCOLHA SEU SEA",190,tabTeleport)
 local currentTween = nil
 local travelConnection
+local travelJob
 local travelRoot
 local travelHumanoid
-local travelStatus = Instance.new("TextLabel", tabTeleport)
-travelStatus.Size = UDim2.new(1,0,0,56)
-travelStatus.BackgroundTransparency = 1
+local travelStatus = Instance.new("TextLabel", container)
+travelStatus.Name="TeleportStatus"
+travelStatus.Size = UDim2.new(1,0,0,58)
+travelStatus.Position=UDim2.fromOffset(0,0)
+travelStatus.BackgroundColor3=Theme.Second
+travelStatus.BackgroundTransparency = 0.1
+travelStatus.BorderSizePixel=0
+roundUI(travelStatus,8)
+tabTeleport.Position=UDim2.fromOffset(0,66)
+tabTeleport.Size=UDim2.new(1,0,1,-66)
+travelStatus.Visible=tabTeleport.Visible
+HUD.connect(tabTeleport:GetPropertyChangedSignal("Visible"),function()
+    travelStatus.Visible=tabTeleport.Visible
+end)
 travelStatus.TextColor3 = Theme.Text
 travelStatus.TextSize = 12
 travelStatus.Font = Enum.Font.GothamMedium
 travelStatus.TextWrapped = true
-travelStatus.Text = "Selecione abaixo o Sea em que você está para carregar as ilhas."
+travelStatus.Text = "Escolha manualmente Sea 1, 2 ou 3 para carregar as ilhas."
 HUD.travelToken = 0
 local function CancelTeleport(message)
     HUD.travelToken = HUD.travelToken + 1
+    local oldJob=travelJob
+    travelJob=nil
+    if oldJob and oldJob~=coroutine.running() then
+        pcall(task.cancel,oldJob); HUD.jobs[oldJob]=nil
+    end
     if travelConnection then travelConnection:Disconnect(); travelConnection = nil end
     local oldTween = currentTween
     currentTween = nil
@@ -1099,22 +1116,31 @@ local function CancelTeleport(message)
     if oldTween then oldTween:Cancel() end
     if message then travelStatus.Text = message end
 end
+-- Cancelamento sempre acessivel, mesmo com a lista de ilhas rolada.
+do
+    travelStatus.Size=UDim2.new(1,-76,0,58)
+    local stop=Instance.new("TextButton",container)
+    stop.Name="StopTravel"; stop.Size=UDim2.fromOffset(70,58)
+    stop.Position=UDim2.new(1,-70,0,0)
+    stop.BackgroundColor3=Theme.DarkRed; stop.TextColor3=Theme.Text
+    stop.Font=Enum.Font.GothamMedium; stop.TextSize=12; stop.Text="Parar TP"
+    stop.TextWrapped=true; roundUI(stop,8)
+    stop.Visible=tabTeleport.Visible
+    HUD.connect(tabTeleport:GetPropertyChangedSignal("Visible"),function() stop.Visible=tabTeleport.Visible end)
+    HUD.connect(stop.Activated,function() CancelTeleport("Viagem cancelada.") end)
+end
 local function TweenTeleport(destination)
     if HUD.seaBusy or HUD.serverBusy then travelStatus.Text = "Aguarde a troca de servidor/Sea."; return end
     if not HUD.currentSea then travelStatus.Text = "Escolha primeiro o Sea em que esta."; return end
-    local placeIds = {[1]=2753915549,[2]=4442272183,[3]=7449423635}
-    -- Apenas valida o clique; nao escolhe nem carrega Sea automaticamente.
-    if game.PlaceId ~= placeIds[HUD.currentSea] then
-        travelStatus.Text = "A lista escolhida pertence a outro Sea. Selecione seu Sea atual."
-        return
-    end
-    CancelTeleport()
+    -- O Sea escolhido manualmente determina o catalogo, sem bloqueio por PlaceId.
+    CancelTeleport("Preparando viagem: "..destination.nome)
     local character = player.Character
     local root = character and character:FindFirstChild("HumanoidRootPart")
     local hum = character and character:FindFirstChildOfClass("Humanoid")
     if not root or not hum or hum.Health <= 0 then travelStatus.Text = "Aguarde o personagem renascer."; return end
     if HUD.stopFly then HUD.stopFly() end
     if root.Anchored then travelStatus.Text = "Personagem preso. Aguarde antes de viajar."; return end
+    hum.Sit=false
     HUD.farmPaused, HUD.travelActive = true, true
     travelRoot, travelHumanoid = root, hum
     local token = HUD.travelToken
@@ -1140,6 +1166,7 @@ local function TweenTeleport(destination)
         local params = RaycastParams.new()
         params.FilterType = Enum.RaycastFilterType.Exclude
         local ignore = {character}
+        if floor then table.insert(ignore,floor) end
         for _, name in ipairs({"Characters", "Enemies", "NPCs", "_WorldOrigin", "PudimHub_FlightOrigin"}) do
             local object = workspace:FindFirstChild(name)
             if object then table.insert(ignore, object) end
@@ -1175,7 +1202,7 @@ local function TweenTeleport(destination)
         end
         return true
     end
-    HUD.startJob(function()
+    travelJob=HUD.startJob(function()
         local ok, err = pcall(function()
             local point, observed, livePosition = destination.cf, nil, nil
             local needsGround = not destination.cf and not destination.npc
@@ -1195,7 +1222,7 @@ local function TweenTeleport(destination)
                 livePosition = objectPosition(observed)
                 if livePosition then
                     -- Marcadores sao centros de regioes, nao pisos.
-                    if not point or (point.Position-livePosition).Magnitude > 1500 then
+                    if not point then
                         point = CFrame.new(livePosition)
                         needsGround = true
                     end
@@ -1212,30 +1239,52 @@ local function TweenTeleport(destination)
             end
             if destination.portal and not entrance(destination.portal) then return end
             if not valid() then return end
-            pcall(function() player:RequestStreamAroundAsync(point.Position, 2) end)
+            travelStatus.Text="Carregando destino: "..destination.nome
+            pcall(function() player:RequestStreamAroundAsync(point.Position, 3) end)
             if not valid() then return end
             local grounded = groundAt(point.Position, needsGround)
+            if not grounded and needsGround then
+                -- O streaming pode terminar antes de o piso aparecer no cliente.
+                local deadline=os.clock()+3
+                repeat
+                    task.wait(0.25)
+                    if not valid() then return end
+                    grounded=groundAt(point.Position,true)
+                until grounded or os.clock()>=deadline
+            end
             if grounded then point = grounded
             elseif needsGround then
                 CancelTeleport("Local encontrado, mas sem piso carregado para pousar. Aproxime-se e tente novamente.")
                 return
             end
             local duration = math.max(0.1,(root.Position-point.Position).Magnitude/HUD.travelSpeed)
-            if duration > 180 then CancelTeleport("Destino longe demais para viagem direta. Use barco/portal para se aproximar."); return end
+            if duration > 600 then
+                CancelTeleport("Viagem acima de 10 minutos nessa velocidade. Aumente Velocidade da viagem ou aproxime-se."); return
+            end
             travelStatus.Text = string.format("%s / %.0f s / farm pausado",destination.nome,duration)
             local tween = TweenService:Create(root,TweenInfo.new(duration,Enum.EasingStyle.Linear),{CFrame=point})
             currentTween = tween
-            local completed = false
-            travelConnection = tween.Completed:Connect(function(state) completed = state == Enum.PlaybackState.Completed end)
+            local completed,ended = false,false
+            travelConnection = tween.Completed:Connect(function(state)
+                ended=true; completed=state==Enum.PlaybackState.Completed
+            end)
             tween:Play()
             local limit = os.clock()+duration+4
+            local progressPosition,progressAt=root.Position,os.clock()
             repeat
                 task.wait(0.15)
                 if not valid() then return end
+                if (root.Position-progressPosition).Magnitude>=1 then
+                    progressPosition,progressAt=root.Position,os.clock()
+                elseif not ended and os.clock()-progressAt>4 then
+                    CancelTeleport("Sem deslocamento por 4 segundos. Personagem preso ou movimento recusado."); return
+                end
+                travelStatus.Text=string.format("Indo: %s / %.0f studs restantes",destination.nome,(root.Position-point.Position).Magnitude)
+                if root.Anchored then CancelTeleport("Viagem interrompida: personagem ancorado."); return end
                 if destination.event and observed and not observed:IsDescendantOf(workspace) then
                     CancelTeleport("Evento deixou de estar carregado durante a viagem."); return
                 end
-            until not valid() or completed or os.clock() >= limit
+            until not valid() or ended or os.clock() >= limit
             if not valid() then return end
             if not completed then CancelTeleport("Percurso interrompido ou tempo limite."); return end
             travelStatus.Text = "Conferindo chegada: " .. destination.nome
@@ -1246,7 +1295,7 @@ local function TweenTeleport(destination)
                 or "Posicao corrigida pelo jogo ou pouso nao confirmado. Confira o destino antes de tentar novamente.")
             HUD.manualHold = os.clock()+0.5
         end)
-        if not ok and valid() then CancelTeleport("Viagem interrompida: " .. tostring(err)) end
+        if not ok and valid() then HUD.report("Teleporte",err); CancelTeleport("Viagem interrompida: " .. tostring(err):sub(1,160)) end
     end)
 end
 
@@ -1272,7 +1321,7 @@ do
     selectedLabel.Font = Enum.Font.GothamMedium
     selectedLabel.TextSize = 12
     selectedLabel.TextWrapped = true
-    selectedLabel.Text = "Escolha seu Sea. Eventos dependem do mapa carregado; acessos podem exigir NPC/portal."
+    selectedLabel.Text = "Escolha seu Sea abaixo. Eventos dependem do mapa carregado."
     local selector = Instance.new("Frame",tabTeleport)
     selector.Size = UDim2.new(1,0,0,40)
     selector.BackgroundTransparency = 1
@@ -1288,14 +1337,11 @@ do
     search.Text = ""
     search.ClearTextOnFocus = false
     roundUI(search)
-    local list = Instance.new("ScrollingFrame",tabTeleport)
+    local list = Instance.new("Frame",tabTeleport)
     list.Size = UDim2.new(1,0,0,0)
     list.BackgroundTransparency = 1
     list.BorderSizePixel = 0
-    list.ScrollBarThickness = 5
-    list.ScrollBarImageColor3 = Theme.Red
-    list.ScrollingDirection = Enum.ScrollingDirection.Y
-    list.CanvasSize = UDim2.new()
+    -- Uma unica rolagem na aba: evita disputa de toque entre dois ScrollingFrames.
     local function rebuild()
         for _, child in ipairs(list:GetChildren()) do child:Destroy() end
         local entries = table.clone(HUD.islandsBySea[HUD.currentSea] or {})
@@ -1323,7 +1369,16 @@ do
                 local tag = island.event and " [EVENTO]" or island.npc and " [ACESSO]" or island.portal and " [ENTRADA]" or not island.cf and " [LOCALIZAR]" or ""
                 button.Text = island.nome .. tag
                 roundUI(button,7)
-                button.Activated:Connect(function() TweenTeleport(destination) end)
+                button.Active=true
+                button.Activated:Connect(function()
+                    if not HUD.alive then return end
+                    travelStatus.Text="Selecionado: "..destination.nome
+                    local ok,err=pcall(TweenTeleport,destination)
+                    if not ok then
+                        HUD.report("Clique teleporte",err)
+                        CancelTeleport("Falha ao iniciar: "..tostring(err):sub(1,160))
+                    end
+                end)
                 local favorite=Instance.new("TextButton",list)
                 favorite.Size=UDim2.fromOffset(34,34)
                 favorite.Position=UDim2.new(1,-43,0,count*38)
@@ -1341,9 +1396,7 @@ do
                 count = count + 1
             end
         end
-        list.Size = UDim2.new(1,0,0,HUD.currentSea and math.min(280,math.max(38,count*38)) or 0)
-        list.CanvasSize = UDim2.fromOffset(0,count*38)
-        list.CanvasPosition = Vector2.zero
+        list.Size = UDim2.new(1,0,0,HUD.currentSea and math.max(38,count*38) or 0)
         if HUD.currentSea then selectedLabel.Text = "SEA "..HUD.currentSea.." / "..count.." de "..#entries.." destinos. [EVENTO] depende de estar carregado." end
     end
     for sea = 1,3 do
@@ -1370,31 +1423,26 @@ do
         end)
     end
     HUD.refreshIslands = rebuild
+    for sea,button in ipairs(buttons) do
+        button.BackgroundColor3=sea==HUD.currentSea and Theme.DarkRed or Theme.Button
+        button.Text="SEA "..sea..(sea==HUD.currentSea and " [x]" or "")
+    end
+    rebuild()
     search:GetPropertyChangedSignal("Text"):Connect(rebuild)
     HUD.resetSeaSelection = function()
         HUD.currentSea = nil
         search.Text = ""
-        for sea, button in ipairs(buttons) do button.Text = "SEA "..sea; button.BackgroundColor3 = Theme.Button end
-        selectedLabel.Text = "Escolha o Sea em que voce esta."
+        for sea, button in ipairs(buttons) do
+            button.Text = "SEA "..sea..(sea==HUD.currentSea and " [x]" or "")
+            button.BackgroundColor3 = sea==HUD.currentSea and Theme.DarkRed or Theme.Button
+        end
+        selectedLabel.Text = "Escolha manualmente Sea 1, 2 ou 3."
+        travelStatus.Text = "Escolha seu Sea para carregar as ilhas."
         rebuild()
     end
 end
 
 
--- ================= BOTÃO CANCELAR =================
-local cancelBtn = Instance.new("TextButton", tabTeleport)
-cancelBtn.Position = UDim2.new(0,10,0,302)
-cancelBtn.Size = UDim2.new(1,-20,0,32)
-cancelBtn.BackgroundColor3 = Color3.fromRGB(140,40,40)
-cancelBtn.Text = "Cancelar TP"
-cancelBtn.TextColor3 = Color3.new(1,1,1)
-cancelBtn.Font = Enum.Font.GothamMedium
-cancelBtn.TextSize = 16
-Instance.new("UICorner", cancelBtn)
-
-cancelBtn.MouseButton1Click:Connect(function()
-	CancelTeleport("Viagem cancelada.")
-end)
 do
     criarSecao("VIAJAR ENTRE SEAS",0,tabTeleport)
     local note = Instance.new("TextLabel",tabTeleport)
@@ -2375,7 +2423,7 @@ do
     footer.TextSize = 11
     footer.Font = Enum.Font.GothamMedium
     footer.TextColor3 = Color3.fromRGB(156, 161, 177)
-    HUD.setText(footer,"PUDIM HUB  /  V030")
+    HUD.setText(footer,"PUDIM HUB  /  V033")
     local sessionStart = os.clock()
     local elapsed, frames = 0, 0
     HUD.connect(RunService.Heartbeat, function(dt)
@@ -2453,6 +2501,7 @@ do
                 end
             end
         end
+        empty.Position=UDim2.fromOffset(0,currentTab==tabTeleport and 66 or 0)
         empty.Visible = count == 0 and query ~= ""
     end
     search:GetPropertyChangedSignal("Text"):Connect(function()
@@ -2480,7 +2529,7 @@ do
     end)
     action(tabSettings, "Centralizar janela", function() frame.Position = UDim2.fromScale(0.5, 0.5) end)
     criarSecao("PREFERÊNCIAS", 0, tabSettings)
-    local feedback = textCard(tabSettings, "V030 salva preferencias automaticamente por conta. Abaixo: importar/exportar o arquivo antigo. Valores, botoes ligados/desligados e modo da mira sao restaurados ao abrir.", 88)
+    local feedback = textCard(tabSettings, "V033 salva preferencias automaticamente por conta. Abaixo: importar/exportar o arquivo antigo. Valores, botoes ligados/desligados e modo da mira sao restaurados ao abrir.", 88)
     local settingsFile = "PudimHub_UI_v005.json"
     action(tabSettings, "Exportar preferencias antigas", function()
         if type(writefile) ~= "function" then feedback.Text = "Este ambiente não oferece salvamento em arquivo."; return end
@@ -2794,7 +2843,7 @@ do
         HUD.connect(item.Activated,callback)
         return item
     end
-    criarSecao("PUDIMHUB / V030",0,tabSistema)
+    criarSecao("PUDIMHUB / V033",0,tabSistema)
     local activity=label(tabSistema,"Pronto",40)
     local diagnostics=label(tabSistema,HUD.errorText,70)
     local storage=label(tabSettings,HUD.storageText,55)
