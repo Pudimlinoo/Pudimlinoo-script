@@ -1,4 +1,4 @@
--- PudimHub v028 | Base v027 | Persistencia dos toggles e mira atraves de paredes NPC/Player
+-- PudimHub v030 | Base v029 | Corrige texto sobreposto na foto do avatar
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/Pudimlinoo/Pudimlinoo-script/main/script.lua"))()
 
 local Players = game:GetService("Players")
@@ -366,7 +366,7 @@ local subtitle = Instance.new("TextLabel", frame)
 subtitle.BackgroundTransparency = 1
 subtitle.Position = UDim2.new(1, -150, 0, 20)
 subtitle.Size = UDim2.fromOffset(130, 24)
-subtitle.Text = "V028  /  BLOX FRUITS"
+subtitle.Text = "V030  /  BLOX FRUITS"
 subtitle.Font = Enum.Font.GothamMedium
 subtitle.TextSize = 11
 subtitle.TextColor3 = Color3.fromRGB(156, 161, 177)
@@ -2308,7 +2308,48 @@ do
     end
 
     criarSecao("SEU PERSONAGEM", 0, tabOverview)
-    local profile = textCard(tabOverview, "Carregando personagem…", 74)
+    local profileCard=Instance.new("Frame",tabOverview)
+    profileCard.Name="PlayerProfile"
+    profileCard.Size=UDim2.new(1,0,0,84)
+    profileCard.BackgroundColor3=Theme.Second
+    profileCard.BackgroundTransparency=0.2
+    profileCard.BorderSizePixel=0
+    roundUI(profileCard,10)
+    local avatar=Instance.new("ImageLabel",profileCard)
+    avatar.Name="PlayerAvatar"
+    avatar.Size=UDim2.fromOffset(56,56)
+    avatar.Position=UDim2.new(0,12,0.5,-28)
+    avatar.BackgroundColor3=Theme.Button
+    avatar.BorderSizePixel=0
+    avatar.ScaleType=Enum.ScaleType.Crop
+    avatar.Image=""
+    roundUI(avatar,28)
+    local avatarEdge=Instance.new("UIStroke",avatar)
+    avatarEdge.Color=Theme.Red; avatarEdge.Thickness=1; avatarEdge.Transparency=0.35
+    -- Sem texto sobre a foto; o fundo permanece visivel enquanto ela carrega.
+    local profile=Instance.new("TextLabel",profileCard)
+    profile.Name="PlayerDetails"
+    profile.Position=UDim2.fromOffset(80,8)
+    profile.Size=UDim2.new(1,-94,1,-16)
+    profile.BackgroundTransparency=1
+    profile.Text=player.DisplayName.."  (@"..player.Name..")"
+    profile.TextColor3=Theme.Text; profile.Font=Enum.Font.GothamMedium; profile.TextSize=13
+    profile.TextWrapped=true; profile.TextXAlignment=Enum.TextXAlignment.Left
+    -- Consulta assincrona: nao bloqueia a montagem do HUD.
+    HUD.startJob(function()
+        for attempt=1,3 do
+            if not HUD.alive or not avatar.Parent then return end
+            local ok,content,ready=pcall(function()
+                return Players:GetUserThumbnailAsync(player.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size150x150)
+            end)
+            if not HUD.alive or not avatar.Parent then return end
+            if ok and type(content)=="string" and content~="" then
+                avatar.Image=content
+                if ready then return end
+            end
+            if attempt<3 then task.wait(2) end
+        end
+    end)
     local health = textCard(tabOverview, "Vida: aguardando personagem", 62)
     local track = Instance.new("Frame", health)
     track.Position = UDim2.new(0, 0, 1, -10)
@@ -2334,7 +2375,7 @@ do
     footer.TextSize = 11
     footer.Font = Enum.Font.GothamMedium
     footer.TextColor3 = Color3.fromRGB(156, 161, 177)
-    HUD.setText(footer,"PUDIM HUB  /  V028")
+    HUD.setText(footer,"PUDIM HUB  /  V030")
     local sessionStart = os.clock()
     local elapsed, frames = 0, 0
     HUD.connect(RunService.Heartbeat, function(dt)
@@ -2439,7 +2480,7 @@ do
     end)
     action(tabSettings, "Centralizar janela", function() frame.Position = UDim2.fromScale(0.5, 0.5) end)
     criarSecao("PREFERÊNCIAS", 0, tabSettings)
-    local feedback = textCard(tabSettings, "V028 salva preferencias automaticamente por conta. Abaixo: importar/exportar o arquivo antigo. Valores, botoes ligados/desligados e modo da mira sao restaurados ao abrir.", 88)
+    local feedback = textCard(tabSettings, "V030 salva preferencias automaticamente por conta. Abaixo: importar/exportar o arquivo antigo. Valores, botoes ligados/desligados e modo da mira sao restaurados ao abrir.", 88)
     local settingsFile = "PudimHub_UI_v005.json"
     action(tabSettings, "Exportar preferencias antigas", function()
         if type(writefile) ~= "function" then feedback.Text = "Este ambiente não oferece salvamento em arquivo."; return end
@@ -2753,7 +2794,7 @@ do
         HUD.connect(item.Activated,callback)
         return item
     end
-    criarSecao("PUDIMHUB / V028",0,tabSistema)
+    criarSecao("PUDIMHUB / V030",0,tabSistema)
     local activity=label(tabSistema,"Pronto",40)
     local diagnostics=label(tabSistema,HUD.errorText,70)
     local storage=label(tabSettings,HUD.storageText,55)
