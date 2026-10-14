@@ -1,4 +1,4 @@
--- PudimHub v027 | Base v026 | Controle de retencao da mira NPC atras de paredes
+-- PudimHub v028 | Base v027 | Persistencia dos toggles e mira atraves de paredes NPC/Player
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/Pudimlinoo/Pudimlinoo-script/main/script.lua"))()
 
 local Players = game:GetService("Players")
@@ -366,7 +366,7 @@ local subtitle = Instance.new("TextLabel", frame)
 subtitle.BackgroundTransparency = 1
 subtitle.Position = UDim2.new(1, -150, 0, 20)
 subtitle.Size = UDim2.fromOffset(130, 24)
-subtitle.Text = "V027  /  BLOX FRUITS"
+subtitle.Text = "V028  /  BLOX FRUITS"
 subtitle.Font = Enum.Font.GothamMedium
 subtitle.TextSize = 11
 subtitle.TextColor3 = Color3.fromRGB(156, 161, 177)
@@ -550,7 +550,7 @@ local function criarBotaoToggle(txt, y, p, cb)
         cb(state)
         if HUD.preferencesChanged then HUD.preferencesChanged() end
     end
-    table.insert(HUD.toggles, {set = setState, default = false})
+    table.insert(HUD.toggles, {key = p.Name.."/"..txt, set = setState, get = function() return state end, default = false})
     row.Activated:Connect(function() setState(not state, false) end)
 end
 
@@ -1463,7 +1463,7 @@ end
 do
     local aim = {mode = nil, part = nil, model = nil, humanoid = nil, owner = nil,
         playerFov = 200, npcFov = 200, distance = 500, smooth = 0,
-        enemiesOnly = false, showFov = true, highlight = true, elapsed = 0, keepNpcBehindWalls = false}
+        enemiesOnly = false, showFov = true, highlight = true, elapsed = 0, keepBehindWalls = false}
     local green = Color3.fromRGB(55, 235, 130)
     local function clearTarget(reason)
         aim.reason=reason
@@ -1509,12 +1509,20 @@ do
         end
         status.TextColor3 = aim.mode and color or Theme.Text
     end
-    local function setMode(mode)
+    HUD.savedAimMode = false
+    local function setMode(mode, temporary)
+        if not temporary then
+            HUD.savedAimMode = mode or false
+            if HUD.preferencesChanged then HUD.preferencesChanged() end
+        end
         aim.mode = mode
         aim.elapsed = 1
         clearTarget()
         circle.Visible = false
         updateUI()
+    end
+    HUD.restoreAimMode = function(mode)
+        if mode=="PLAYER" or mode=="NPC" then setMode(mode) else setMode(nil) end
     end
     HUD.resetAim = function() setMode(nil) end
     for _, mode in ipairs({"PLAYER", "NPC"}) do
@@ -1541,8 +1549,8 @@ do
     criarBotaoToggle("Jogadores: só inimigos",0,tabAimbot,function(v)
         aim.enemiesOnly = v; clearTarget()
     end)
-    criarBotaoToggle("Manter alvo NPC atrás de paredes",0,tabAimbot,function(v)
-        aim.keepNpcBehindWalls = v
+    criarBotaoToggle("Manter alvo atrás de paredes (NPC/Player)",0,tabAimbot,function(v)
+        aim.keepBehindWalls = v
     end)
     criarBotaoToggle("Ocultar círculo FOV",0,tabAimbot,function(v) aim.showFov = not v end)
     criarBotaoToggle("Ocultar destaque do alvo",0,tabAimbot,function(v)
@@ -1637,7 +1645,10 @@ do
             if aim.mode == "NPC" then setMode(nil) else setMode("NPC") end
         end
     end)
-    HUD.connect(player.CharacterRemoving, function() setMode(nil) end)
+    HUD.connect(player.CharacterRemoving, function() setMode(nil, true) end)
+    HUD.connect(player.CharacterAdded, function()
+        setMode(HUD.savedAimMode or nil, true)
+    end)
     local renderName="PudimHubAim_"..tostring(player.UserId)
     local function renderAim(dt)
         local camera = workspace.CurrentCamera
@@ -1654,12 +1665,12 @@ do
         circle.Size = UDim2.fromOffset(radius * 2, radius * 2)
         circle.Position = UDim2.fromOffset(camera.ViewportSize.X / 2 - inset.X, camera.ViewportSize.Y / 2 - inset.Y)
         aim.elapsed = aim.elapsed + dt
-        -- A opcao de paredes so afeta a retencao do NPC; novos alvos exigem visibilidade.
+        -- A opcao de paredes afeta a retencao de NPCs e jogadores; novos alvos exigem visibilidade.
         if aim.part then
             local reason
             if not eligible(aim.model,aim.owner) or not aim.part:IsDescendantOf(aim.model) then reason="Alvo removido ou filtro alterado"
             elseif not aim.humanoid or aim.humanoid.Health<=0 then reason="Alvo sem vida"
-            elseif not (aim.mode=="NPC" and aim.keepNpcBehindWalls)
+            elseif not aim.keepBehindWalls
                 and visiblePart(camera,aim.model,aim.part,true)==nil then reason="Alvo obstruido" end
             if reason then clearTarget(reason); updateUI() end
         end
@@ -2323,7 +2334,7 @@ do
     footer.TextSize = 11
     footer.Font = Enum.Font.GothamMedium
     footer.TextColor3 = Color3.fromRGB(156, 161, 177)
-    HUD.setText(footer,"PUDIM HUB  /  V027")
+    HUD.setText(footer,"PUDIM HUB  /  V028")
     local sessionStart = os.clock()
     local elapsed, frames = 0, 0
     HUD.connect(RunService.Heartbeat, function(dt)
@@ -2428,7 +2439,7 @@ do
     end)
     action(tabSettings, "Centralizar janela", function() frame.Position = UDim2.fromScale(0.5, 0.5) end)
     criarSecao("PREFERÊNCIAS", 0, tabSettings)
-    local feedback = textCard(tabSettings, "V027 salva preferencias automaticamente por conta. Abaixo: importar/exportar o arquivo antigo. Funcoes de jogo iniciam desligadas.", 88)
+    local feedback = textCard(tabSettings, "V028 salva preferencias automaticamente por conta. Abaixo: importar/exportar o arquivo antigo. Valores, botoes ligados/desligados e modo da mira sao restaurados ao abrir.", 88)
     local settingsFile = "PudimHub_UI_v005.json"
     action(tabSettings, "Exportar preferencias antigas", function()
         if type(writefile) ~= "function" then feedback.Text = "Este ambiente não oferece salvamento em arquivo."; return end
@@ -2742,7 +2753,7 @@ do
         HUD.connect(item.Activated,callback)
         return item
     end
-    criarSecao("PUDIMHUB / V027",0,tabSistema)
+    criarSecao("PUDIMHUB / V028",0,tabSistema)
     local activity=label(tabSistema,"Pronto",40)
     local diagnostics=label(tabSistema,HUD.errorText,70)
     local storage=label(tabSettings,HUD.storageText,55)
@@ -2810,10 +2821,11 @@ do
         revision=revision+1; dirty=true; due=os.clock()+0.8
     end
     local function snapshot()
-        local values={}
+        local values,toggles={},{}
         for key,control in pairs(HUD.sliders) do values[key]=control.get() end
+        for _,control in ipairs(HUD.toggles) do toggles[control.key]=control.get() end
         local p=frame.Position
-        return {version=1,values=values,keys=HUD.keys,favorites=HUD.favorites,
+        return {version=1,values=values,toggles=toggles,aimMode=HUD.savedAimMode,keys=HUD.keys,favorites=HUD.favorites,
             watchEvents=HUD.watchEvents,status=HUD.status,filter=HUD.farmFilter,accent=HUD.accent,
             weapon=HUD.weaponName,aimFilter=HUD.aimFilter,aimPriority=HUD.aimPriority,
             position={p.X.Scale,p.X.Offset,p.Y.Scale,p.Y.Offset}}
@@ -2864,6 +2876,16 @@ do
         local p=saved.position
         if type(p)=="table" and finite(p[1]) and finite(p[2]) and finite(p[3]) and finite(p[4]) then
             frame.Position=UDim2.new(math.clamp(p[1],0,1),math.clamp(p[2],-2000,2000),math.clamp(p[3],0,1),math.clamp(p[4],-2000,2000))
+        end
+        -- Ativa os controles depois de restaurar valores, filtros e arma.
+        if type(saved.toggles)=="table" then
+            for _,control in ipairs(HUD.toggles) do
+                local value=saved.toggles[control.key]
+                if type(value)=="boolean" then control.set(value,true) end
+            end
+        end
+        if saved.aimMode==false or saved.aimMode=="NPC" or saved.aimMode=="PLAYER" then
+            HUD.restoreAimMode(saved.aimMode)
         end
         return true
     end
