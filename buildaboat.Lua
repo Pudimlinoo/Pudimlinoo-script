@@ -87,7 +87,7 @@ create("TextLabel", {
     Position = UDim2.new(1, -252, 0, 20),
     Size = UDim2.fromOffset(190, 24),
     BackgroundTransparency = 1,
-    Text = "V016C13  /  BUILD A BOAT",
+    Text = "ÍMÃ JOGADOR + BUILD v7  /  BUILD A BOAT",
     Font = Enum.Font.GothamMedium,
     TextSize = 11,
     TextColor3 = Theme.Muted,
@@ -180,7 +180,7 @@ end
 local function createTab(name)
     local button = create("TextButton", {
         Name = name .. "Tab",
-        Size = UDim2.new(1, -6, 0, 42),
+        Size = UDim2.new(1, -6, 0, 38),
         LayoutOrder = #tabs + 1,
         BackgroundColor3 = Theme.Second,
         BorderSizePixel = 0,
@@ -226,6 +226,7 @@ local tabPlayer = createTab("Player")
 local tabAutoFarm = createTab("Auto Farm")
 local tabStats = createTab("Estatísticas")
 local tabMagnet = createTab("Ímã")
+local tabMagnetPlayer = createTab("Ímã jogador")
 local tabBuild = createTab("Build")
 local tabVisual = createTab("Visual")
 local tabSettings = createTab("Ajustes")
@@ -445,7 +446,7 @@ local controlOrder = {}
 local function control(page, className, text, height)
     controlOrder[page] = (controlOrder[page] or 0) + 1
     local object = create(className, {
-        Size = UDim2.new(1, 0, 0, height or ((page == tabBuild or page == tabMagnet) and 38 or 44)), LayoutOrder = controlOrder[page],
+        Size = UDim2.new(1, 0, 0, height or ((page == tabBuild or page == tabMagnet or page == tabMagnetPlayer) and 38 or 44)), LayoutOrder = controlOrder[page],
         BackgroundColor3 = Theme.Button, BorderSizePixel = 0,
         Text = text, TextColor3 = Theme.Text, TextSize = 13,
         TextWrapped = true, Font = Enum.Font.GothamMedium,
@@ -468,7 +469,7 @@ local function control(page, className, text, height)
 end
 local function toggle(page, name, callback)
     local enabled = false
-    local button = control(page, "TextButton", "", (page == tabBuild or page == tabMagnet) and 40 or 46)
+    local button = control(page, "TextButton", "", (page == tabBuild or page == tabMagnet or page == tabMagnetPlayer) and 40 or 46)
     button:SetAttribute("SearchText", name)
     create("TextLabel", {Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -78, 1, 0),
         BackgroundTransparency = 1, Text = name, Font = Enum.Font.GothamMedium,
@@ -495,7 +496,7 @@ local function toggle(page, name, callback)
     return set
 end
 local function numberField(page, name, initial, minimum, maximum, callback)
-    local compact = page == tabBuild or page == tabMagnet
+    local compact = page == tabBuild or page == tabMagnet or page == tabMagnetPlayer
     controlOrder[page] = (controlOrder[page] or 0) + 1
     local row = create("Frame", {Size = UDim2.new(1, 0, 0, compact and 68 or 82), LayoutOrder = controlOrder[page],
         BackgroundColor3 = Theme.Second, BorderSizePixel = 0}, page)
@@ -1175,13 +1176,16 @@ do
     local magnet = {enabled = false, holding = false, toggleMode = false, radius = 20, reach = 150,
         response = 100, speed = 80, limit = 20, depth = 35, mode = 1, formation = 12,
         angle = 0, orbitHeight = 5, orbitRate = 70, tornadoHeight = 40, ghost = false,
-        capture = 0, capturing = false, spacing = 6, sphereRadius = 15, items = {}}
+        capture = 0, capturing = false, spacing = 6, sphereRadius = 15, playerRadius = 12, items = {}}
     local modeNames = {"Normal", "Centralizar no cursor", "Círculo", "Órbita",
-        "Órbita no jogador", "Círculo no jogador", "Tornado", "Tornado no cursor", "Linha reta", "Parede", "Esfera"}
-    local function followsPlayer(mode) return mode >= 5 and mode <= 7 end
+        "Órbita no jogador", "Círculo no jogador", "Tornado", "Tornado no cursor", "Linha reta", "Parede", "Esfera",
+        "Caixa no jogador", "Esfera no jogador"}
+    local function followsPlayer(mode) return (mode >= 5 and mode <= 7) or mode == 12 or mode == 13 end
     local mouse = player:GetMouse()
     local tornadoCenter
     local groupCenter
+    local wallRight
+    local layoutCount = 0
     local recoveryLoad = 0
     local splitScan = 0
     local lastCursorTarget
@@ -1203,6 +1207,9 @@ do
     end
     control(tabMagnet, "TextLabel", "ÍMÃ DE BLOCOS", 28).BackgroundTransparency = 1
     local magnetStatus = control(tabMagnet, "TextLabel", "Desligado", 52)
+    control(tabMagnetPlayer, "TextLabel", "ÍMÃ AO REDOR DO JOGADOR", 28).BackgroundTransparency = 1
+    local playerStatus = control(tabMagnetPlayer, "TextLabel", "Desligado", 64)
+    connect(magnetStatus:GetPropertyChangedSignal("Text"), function() playerStatus.Text = magnetStatus.Text end)
     local function updateCollisions(item, ghost)
         for part, saved in pairs(item.collisions) do
             if part.Parent then
@@ -1232,6 +1239,8 @@ do
         table.clear(magnet.items)
         tornadoCenter = nil
         groupCenter = nil
+        wallRight = nil
+        layoutCount = 0
         recoveryLoad = 0
         lastCursorTarget = nil
         aimFilterDirty = true
@@ -1251,29 +1260,65 @@ do
     end)
     local modeButton = control(tabMagnet, "TextButton", "Modo: Normal  ▾")
     modeButton:SetAttribute("SearchText", "Modo do ímã")
+    local playerMode = 5
+    local playerModeButton = control(tabMagnetPlayer, "TextButton", "Modo: Órbita no jogador  ▾")
+    playerModeButton:SetAttribute("SearchText", "Modo ao redor do jogador")
     local function setMode(value)
         magnet.mode = math.clamp(math.floor(value), 1, #modeNames)
         magnet.angle = 0
         tornadoCenter = nil
         modeButton.Text = "Modo: " .. modeNames[magnet.mode] .. "  ▾"
+        wallRight = nil
+        if followsPlayer(magnet.mode) then
+            playerMode = magnet.mode
+            playerModeButton.Text = "Modo: " .. modeNames[playerMode] .. "  ▾"
+        end
         if not magnet.capturing and (not magnet.holding or (not magnet.toggleMode and not followsPlayer(magnet.mode)
             and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1))) then releaseMagnet() end
         preferencesChanged()
     end
-    dropdown(tabMagnet, modeButton, function() return indexedOptions(modeNames) end,
+    dropdown(tabMagnet, modeButton, function()
+        local options = {}
+        for index, name in ipairs(modeNames) do
+            if not followsPlayer(index) then table.insert(options, {value = index, label = name}) end
+        end
+        return options
+    end,
         setMode, function() return magnet.mode end)
+    dropdown(tabMagnetPlayer, playerModeButton, function()
+        local options = {}
+        for _, index in ipairs({5, 6, 7, 12, 13}) do
+            table.insert(options, {value = index, label = modeNames[index]})
+        end
+        return options
+    end, setMode, function() return playerMode end)
+    control(tabMagnetPlayer, "TextButton", "Ativar no jogador").Activated:Connect(function()
+        setMode(playerMode)
+        if not magnet.enabled then setEnabled(true) end
+    end)
+    control(tabMagnetPlayer, "TextButton", "Soltar todos os blocos").Activated:Connect(function() releaseMagnet() end)
+    control(tabMagnetPlayer, "TextButton", "Desligar ímã").Activated:Connect(function() setEnabled(false) end)
     preferences.controls["Ímã/Modo"] = {kind = "number", get = function() return magnet.mode end, set = setMode}
     numberField(tabMagnet, "Raio de captura (studs)", 20, 5, 1000, function(value) magnet.radius = value end)
     numberField(tabMagnet, "Alcance máximo (studs)", 150, 20, 2000, function(value) magnet.reach = value end)
     numberField(tabMagnet, "Resposta do movimento (%)", 100, 5, 500, function(value) magnet.response = value end)
     numberField(tabMagnet, "Velocidade dos blocos (studs/s)", 80, 5, 1000, function(value) magnet.speed = value end)
-    numberField(tabMagnet, "Raio do círculo / órbita", 12, 5, 500, function(value) magnet.formation = value end)
+    numberField(tabMagnetPlayer, "Raio do círculo / órbita", 12, 5, 500, function(value) magnet.formation = value end)
+    preferences.controls["Ímã/Raio do círculo / órbita"] = preferences.controls["Ímã jogador/Raio do círculo / órbita"]
+    preferences.controls["Ímã jogador/Raio do círculo / órbita"] = nil
     local showDepth = numberField(tabMagnet, "Distância do cursor (studs)", 35, 5, 2500, function(value) magnet.depth = value end)
-    numberField(tabMagnet, "Altura da formação no jogador", 5, 0, 100, function(value) magnet.orbitHeight = value end)
-    numberField(tabMagnet, "Altura do tornado", 40, 5, 500, function(value) magnet.tornadoHeight = value end)
+    numberField(tabMagnetPlayer, "Altura da formação no jogador", 5, 0, 100, function(value) magnet.orbitHeight = value end)
+    preferences.controls["Ímã/Altura da formação no jogador"] = preferences.controls["Ímã jogador/Altura da formação no jogador"]
+    preferences.controls["Ímã jogador/Altura da formação no jogador"] = nil
+    numberField(tabMagnetPlayer, "Tamanho da caixa / esfera", 12, 5, 100, function(value) magnet.playerRadius = value end)
+    numberField(tabMagnetPlayer, "Altura do tornado", 40, 5, 500, function(value) magnet.tornadoHeight = value end)
+    preferences.controls["Ímã/Altura do tornado"] = preferences.controls["Ímã jogador/Altura do tornado"]
+    preferences.controls["Ímã jogador/Altura do tornado"] = nil
     numberField(tabMagnet, "Espaçamento da linha / parede", 6, 2, 100, function(value) magnet.spacing = value end)
     numberField(tabMagnet, "Raio da esfera", 15, 3, 500, function(value) magnet.sphereRadius = value end)
-    numberField(tabMagnet, "Velocidade da órbita (graus/s)", 70, 0, 500, function(value) magnet.orbitRate = value end)
+    numberField(tabMagnetPlayer, "Velocidade da órbita (graus/s)", 70, 0, 1440, function(value) magnet.orbitRate = value end)
+    preferences.controls["Ímã/Velocidade da órbita (graus/s)"] = preferences.controls["Ímã jogador/Velocidade da órbita (graus/s)"]
+    preferences.controls["Ímã jogador/Velocidade da órbita (graus/s)"] = nil
     numberField(tabMagnet, "Limite de conjuntos de blocos", 20, 1, 500, function(value) magnet.limit = math.floor(value) end)
     local setGhost = toggle(tabMagnet, "Atravessar obstáculos", function(value)
         magnet.ghost = value
@@ -1297,6 +1342,7 @@ do
             ["Atravessar obstáculos"] = true,
             ["Raio do círculo / órbita"] = 12, ["Limite de conjuntos de blocos"] = 20 }
         for name, value in pairs(defaults) do preferences.controls["Ímã/" .. name].set(value) end
+        preferences.controls["Ímã jogador/Tamanho da caixa / esfera"].set(12)
         magnetStatus.Text = "Ímã desligado • opções restauradas"
         saveSettings()
     end)
@@ -1304,6 +1350,16 @@ do
     local function formationOffset(mode, index, count, radius, angle, original, tornadoHeight)
         if mode == 1 then return original end
         if mode == 2 then return Vector3.new(0, 0, 0) end
+        if mode == 12 or mode == 13 then
+            local y = 1 - 2 * (index - 0.5) / math.max(1, count)
+            local ring = math.sqrt(math.max(0, 1 - y * y))
+            local theta = (index - 1) * math.pi * (3 - math.sqrt(5))
+            local point = Vector3.new(math.cos(theta) * ring, y, math.sin(theta) * ring)
+            if mode == 12 then
+                point = point / math.max(math.abs(point.X), math.abs(point.Y), math.abs(point.Z), 0.001)
+            end
+            return point * magnet.playerRadius
+        end
         if mode == 11 then
             if count <= 1 then return Vector3.zero end
             -- Espiral de Fibonacci distribui os blocos pela superficie sem acumular nos polos.
@@ -1318,8 +1374,7 @@ do
         if mode == 10 then
             local columns = math.max(1, math.ceil(math.sqrt(count)))
             local row = math.floor((index - 1) / columns)
-            local rowCount = math.min(columns, count - row * columns)
-            return Vector3.new(((index - 1) % columns - (rowCount - 1) / 2) * magnet.spacing,
+            return Vector3.new(((index - 1) % columns - (columns - 1) / 2) * magnet.spacing,
                 row * magnet.spacing, 0)
         end
         if mode == 7 or mode == 8 then
@@ -1511,21 +1566,13 @@ do
         if not magnet.enabled or not magnet.ghost or not (magnet.holding or magnet.capturing) then return end
         for _, item in ipairs(magnet.items) do updateCollisions(item, true) end
     end)
-    connect(UserInputService.InputChanged, function(input, processed)
-        if magnet.holding and not processed and input.UserInputType == Enum.UserInputType.MouseWheel then
-            if followsPlayer(magnet.mode) then
-                preferences.controls["Ímã/Raio do círculo / órbita"].set(magnet.formation + input.Position.Z * 2)
-            else
-                preferences.controls["Ímã/Distância do cursor (studs)"].set(magnet.depth + input.Position.Z * 10)
-            end
-        end
-    end)
     connect(RunService.Heartbeat, function(dt)
         if not magnet.holding then return end
         local _, humanoid, rootPart = characterParts()
         if not rootPart or not humanoid or humanoid.Health <= 0 or farm.enabled then releaseMagnet(); return end
         local ray = mouse.UnitRay
         local target
+        if aimFilterDirty then rebuildAimFilter() end
         if aimFilterDirty then rebuildAimFilter() end
         local clearance = 4
         for _, item in ipairs(magnet.items) do
@@ -1535,7 +1582,8 @@ do
             end
         end
         if followsPlayer(magnet.mode) then
-            target = rootPart.Position + Vector3.new(0, magnet.orbitHeight, 0)
+            target = rootPart.Position + Vector3.new(0,
+                (magnet.mode == 12 or magnet.mode == 13) and (magnet.orbitHeight - 5) or magnet.orbitHeight, 0)
         else
             if aimFilterDirty then rebuildAimFilter() end
             -- O alcance e medido a partir do personagem, nao a partir da camera.
@@ -1578,7 +1626,30 @@ do
             groupCenter = delta.Magnitude > step and (groupCenter + delta.Unit * step) or target
             target = groupCenter
         end
-        local angularRate = math.min(math.rad(magnet.orbitRate), magnet.speed * (tornado and 0.35 or 0.55) / math.max(1, magnet.formation)) * pace
+        local rotating = magnet.mode == 4 or magnet.mode == 5 or tornado
+        -- O giro tem sua propria reserva de velocidade, independente do deslocamento do cursor.
+        local angularRate = math.min(math.rad(magnet.orbitRate),
+            2000 / math.max(1, magnet.formation), math.rad(60) / math.max(dt, 0.001)) * pace
+        local rigidShape = magnet.mode == 10 or magnet.mode == 11 or magnet.mode == 12 or magnet.mode == 13
+        if magnet.mode == 10 or magnet.mode == 11 then
+            -- Eleva a forma inteira: corrigir cada bloco separadamente achatava a esfera e a parede.
+            local bottom = target - Vector3.new(0, magnet.mode == 11 and magnet.sphereRadius or 0, 0)
+            local hit = workspace:Raycast(bottom + Vector3.new(0, clearance + 8, 0),
+                Vector3.new(0, -(clearance + 72), 0), aimParams)
+            if hit and hit.Normal.Y > 0.5 then
+                target = target + Vector3.new(0, math.max(0, hit.Position.Y + clearance - bottom.Y), 0)
+            end
+        end
+        if magnet.mode == 10 and not wallRight then
+            local camera = workspace.CurrentCamera
+            local right = camera and camera.CFrame.RightVector or Vector3.xAxis
+            right = Vector3.new(right.X, 0, right.Z)
+            wallRight = right.Magnitude > 0.001 and right.Unit or Vector3.xAxis
+        end
+        if layoutCount ~= #magnet.items then
+            layoutCount = #magnet.items
+            for index, item in ipairs(magnet.items) do item.slot, item.slotCount = index, layoutCount end
+        end
         magnet.angle = (magnet.angle + math.min(dt, 0.1) * angularRate) % (2 * math.pi)
         local unresponsive = 0
         local paused = 0
@@ -1663,7 +1734,7 @@ do
                     magnet.formation, magnet.angle, item.offset, magnet.tornadoHeight)
                 if magnet.mode == 9 or magnet.mode == 10 then
                     local camera = workspace.CurrentCamera
-                    local right = camera and camera.CFrame.RightVector or Vector3.xAxis
+                    local right = magnet.mode == 10 and wallRight or (camera and camera.CFrame.RightVector or Vector3.xAxis)
                     right = Vector3.new(right.X, 0, right.Z)
                     right = right.Magnitude > 0.001 and right.Unit or Vector3.xAxis
                     offset = right * offset.X + Vector3.yAxis * offset.Y
@@ -1672,7 +1743,7 @@ do
                 -- Verificacao escalonada evita centenas de raycasts no mesmo quadro.
                 item.floorTimer = (item.floorTimer or ((index % 12) * 0.015)) - dt
                 local moved = not item.floorProbe or (destination - item.floorProbe).Magnitude > 12
-                if (item.floorTimer <= 0 or moved) and floorBudget > 0 then
+                if not rigidShape and (item.floorTimer <= 0 or moved) and floorBudget > 0 then
                     floorBudget = floorBudget - 1
                     item.floorTimer = 0.18
                     item.floorProbe = destination
@@ -1682,7 +1753,7 @@ do
                     item.floorY = floorHit and floorHit.Normal.Y > 0.5
                         and (floorHit.Position.Y + sizeClearance) or nil
                 end
-                if item.floorY then
+                if item.floorY and not rigidShape then
                     destination = Vector3.new(destination.X, math.max(destination.Y, item.floorY), destination.Z)
                 end
                 item.command = destination
@@ -1693,15 +1764,20 @@ do
                 local catchingUp = distance > math.max(8, magnet.speed * 0.15)
                     or current.Y < item.command.Y - 4
                 local force = forceFor(item.part)
+                local orbitSpeed = rotating and angularRate * magnet.formation or 0
+                local motionSpeed = math.max(magnet.speed, orbitSpeed * 1.25 + magnet.speed * 0.55)
+                if rotating then
+                    force = math.min(100000000, force + item.part.AssemblyMass * angularRate * angularRate * magnet.formation * 1.5)
+                end
                 if catchingUp then
                     force = math.min(100000000, force + item.part.AssemblyMass * math.min(2000, distance * 30))
                     recovering = recovering + 1
                 end
                 item.align.MaxForce = force
                 item.align.Responsiveness = math.clamp(math.max(magnet.response * 0.4,
-                    catchingUp and 120 or (tornado and 80 or 5)), 5, 200)
-                item.align.MaxVelocity = catchingUp and math.min(1500,
-                    magnet.speed + math.min(magnet.speed, distance * 2)) or magnet.speed
+                    catchingUp and 120 or (rotating and 100 or 5)), 5, 200)
+                item.align.MaxVelocity = catchingUp and math.min(3500,
+                    motionSpeed + math.min(motionSpeed, distance * 2)) or motionSpeed
                 if (item.command - current).Magnitude > 8 and (current - item.lastPosition).Magnitude < 0.05 then
                     item.stalled = item.stalled + dt
                 else item.stalled = 0 end
@@ -1726,10 +1802,19 @@ local stopBuild
 do
     local build = {block = "WoodBlock", pattern = 1, location = 1, count = 20, height = 20, spacing = 6, rate = 6,
         busy = false, token = 0, pending = false, created = {}}
-    local models = {"Blocos no ar para ímã", "Grade", "Torre"}
+    local models = {"Blocos no ar para ímã", "Grade", "Torre", "Parede", "Linha reta", "Círculo", "Esfera", "Pirâmide", "Escada"}
     local choices = {}
+    local function isDynamiteName(name)
+        local key = string.lower(name):gsub("[%s_%-]", ""):gsub("block$", "")
+        return key == "dynamite" or key == "dinamite" or key == "bundlesofdynamite"
+            or key == "bundleofdynamite" or key == "thingsofdynamite"
+            or key == "dynamitebundle" or key == "dynamitebundles"
+    end
     local function buildCategory(name)
         local lower = string.lower(name):gsub("block$", "")
+        if lower == "balloon" or lower == "balloons" then return "Balões" end
+        if lower == "tnt" then return "TNT" end
+        if isDynamiteName(name) then return "Dinamite" end
         if lower:match("chair$") or lower:match("seat$") or lower:match("throne$") then return "Cadeiras" end
         if lower:match("scaffold$") or lower:match("scaffolding$") then return "Andaimes" end
         if name:match("Block$") then return "Blocos" end
@@ -1737,6 +1822,8 @@ do
     end
     local function buildLabel(name)
         local lower = string.lower(name):gsub("block$", "")
+        if lower == "balloon" or lower == "balloons" then return "Balão (" .. name .. ")" end
+        if isDynamiteName(name) then return "Dinamite (" .. name .. ")" end
         if lower == "woodseat" or lower == "woodenseat" or lower == "woodchair" or lower == "woodenchair" then
             return "Cadeira de madeira (" .. name .. ")"
         end
@@ -1758,7 +1845,7 @@ do
         if data then
             for _, entry in ipairs(data:GetChildren()) do
                 if (entry:IsA("IntValue") or entry:IsA("NumberValue"))
-                    and entry.Value > 0 and buildCategory(entry.Name) then
+                    and (entry.Value > 0 or isDynamiteName(entry.Name)) and buildCategory(entry.Name) then
                     table.insert(choices, entry.Name)
                 end
             end
@@ -1785,11 +1872,15 @@ do
         updateBlockButton(); preferencesChanged()
     end, function() return build.block end)
     control(tabBuild, "TextButton", "Atualizar lista de blocos").Activated:Connect(function()
-        buildStatus.Text = "Tipos disponíveis: " .. inventory() .. " • abra a lista para escolher"
+        local count = inventory()
+        local found = false
+        for _, name in ipairs(choices) do if isDynamiteName(name) then found = true; break end end
+        buildStatus.Text = "Tipos listados: " .. count .. (found and " • procure Dinamite na lista"
+            or " • dinamite não identificada no inventário carregado")
     end)
     preferences.controls["Build/Bloco"] = {kind = "string", get = function() return build.block end,
         set = function(value)
-            if #value <= 80 and value:match("^[%w_]+$") and buildCategory(value) then
+            if #value <= 80 and not value:find("%c") and buildCategory(value) then
                 build.block = value; updateBlockButton()
             end
         end}
@@ -1868,10 +1959,47 @@ do
     local function positions(pattern, count, spacing, height)
         local result = {}
         local width = pattern == 1 and math.ceil(count ^ (1 / 3)) or math.ceil(math.sqrt(count))
+        local pyramidWidth, pyramidCapacity = 0, 0
+        if pattern == 8 then
+            while pyramidCapacity < count do
+                pyramidWidth = pyramidWidth + 1
+                pyramidCapacity = pyramidCapacity + pyramidWidth * pyramidWidth
+            end
+        end
         for index = 0, count - 1 do
             local x, y, z = 0, height, 0
             if pattern == 3 then
                 y = height + index * spacing
+            elseif pattern == 4 then
+                x = (index % width - (width - 1) / 2) * spacing
+                y = height + math.floor(index / width) * spacing
+            elseif pattern == 5 then
+                x = (index - (count - 1) / 2) * spacing
+            elseif pattern == 6 then
+                local radius = count > 1 and spacing / (2 * math.sin(math.pi / count)) or 0
+                local angle = 2 * math.pi * index / count
+                x, z = math.cos(angle) * radius, math.sin(angle) * radius
+            elseif pattern == 7 and count > 1 then
+                local radius = spacing * math.sqrt(count) * 0.35
+                local level = 1 - 2 * (index + 0.5) / count
+                local ring = math.sqrt(math.max(0, 1 - level * level))
+                local angle = index * math.pi * (3 - math.sqrt(5))
+                x, z = math.cos(angle) * ring * radius, math.sin(angle) * ring * radius
+                y = height + radius * (1 + level)
+            elseif pattern == 7 then
+                x, z = 0, 0
+            elseif pattern == 8 then
+                local remaining, side, layer = index, pyramidWidth, 0
+                while remaining >= side * side and side > 1 do
+                    remaining = remaining - side * side
+                    side, layer = side - 1, layer + 1
+                end
+                x = (remaining % side - (side - 1) / 2) * spacing
+                z = (math.floor(remaining / side) - (side - 1) / 2) * spacing
+                y = height + layer * spacing
+            elseif pattern == 9 then
+                x = (index - (count - 1) / 2) * spacing
+                y = height + index * spacing * 0.5
             else
                 x = (index % width - (width - 1) / 2) * spacing
                 z = (math.floor(index / width) % width - (width - 1) / 2) * spacing
@@ -1995,6 +2123,11 @@ categories(tabMagnet, {
     {"Formação e tornado", {"Raio do círculo / órbita", "Altura da formação no jogador",
         "Altura do tornado", "Espaçamento da linha / parede", "Raio da esfera", "Velocidade da órbita (graus/s)"}, false},
     {"Restaurar", {"Resetar opções do ímã"}, false},
+})
+categories(tabMagnetPlayer, {
+    {"Controle", {"Modo ao redor do jogador", "Ativar no jogador", "Soltar todos os blocos", "Desligar ímã"}, true},
+    {"Formação", {"Raio do círculo / órbita", "Altura da formação no jogador", "Tamanho da caixa / esfera",
+        "Altura do tornado", "Velocidade da órbita (graus/s)"}, true},
 })
 categories(tabBuild, {
     {"Blocos e modelo", {"Bloco", "Modelo", "Local", "Atualizar lista de blocos"}, true},
