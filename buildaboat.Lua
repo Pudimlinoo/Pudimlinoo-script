@@ -639,7 +639,6 @@ local waterClearance = 3
 numberField(tabPlayer, "Water Walk: distância da água", 3, 2, 8, function(value)
     waterClearance = value
 end)
-control(tabPlayer, "TextLabel", "Water Walk funciona junto com Noclip, mantendo a altura sobre a água. Pausa no barco e durante o farm. Não bloqueia dano aplicado pelo servidor.", 78).BackgroundTransparency = 1
 local function waterSurface(hit)
     if not hit then return false end
     if hit.Material == Enum.Material.Water then return true end
@@ -866,10 +865,8 @@ end)
 numberField(tabAutoFarm, "Velocidade do percurso (studs/s)", 250, 50, 600, function(value) farm.speed = value end)
 numberField(tabAutoFarm, "Segundos em cada etapa", 2, 0.5, 10, function(value) farm.stageDelay = value end)
 numberField(tabAutoFarm, "Pausa entre percursos (segundos)", 5, 1, 30, function(value) farm.respawnDelay = value end)
-control(tabAutoFarm, "TextLabel", "Arraste as barras ou digite os valores. O farm move o personagem entre etapas; Player usa WalkSpeed.\nChegar ao baú não confirma recompensa.", 86).BackgroundTransparency = 1
 
 local stats = control(tabStats, "TextLabel", "Preparando estatísticas…", 164)
-control(tabStats, "TextLabel", "Ouro ganho = soma dos aumentos de saldo observados enquanto o farm está ligado. Pode incluir outras fontes de ouro. Gastos não são descontados.\nO tempo inclui as esperas com o farm ligado.", 106).BackgroundTransparency = 1
 local compactStats = control(tabAutoFarm, "TextLabel", "", 88)
 local function renderStats()
     local total = math.floor(farm.seconds)
@@ -967,11 +964,9 @@ control(tabSettings, "TextButton", "Parar farm e restaurar personagem").Activate
     end
 end)
 control(tabSettings, "TextButton", "Fechar e remover HUD").Activated:Connect(function() gui:Destroy() end)
-control(tabSettings, "TextLabel", "G: abrir / recolher. Fechar o HUD encerra o farm e restaura as alterações locais. Contadores valem somente nesta execução.", 80).BackgroundTransparency = 1
 
 storageStatus = control(tabSettings, "TextLabel", "Carregando preferências…", 76)
 control(tabSettings, "TextButton", "Salvar preferências agora").Activated:Connect(saveSettings)
-control(tabSettings, "TextLabel", "Sliders e opções são salvos por conta, incluindo Auto Farm e Anti-AFK. O farm retoma se foi salvo ligado. As estatísticas são apenas desta sessão.\nReabra o menu com G.", 106).BackgroundTransparency = 1
 
 local function loadSettings()
     if not hasStorage then
