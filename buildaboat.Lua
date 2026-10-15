@@ -1,6 +1,4 @@
--- PudimHub | Build a Boat | Base de interface
--- No Roblox Studio: use um LocalScript em StarterPlayer > StarterPlayerScripts.
--- Interface e controles locais; o servidor pode limitar movimento e recompensas.
+-- loadstring(game:HttpGet("https://raw.githubusercontent.com/Pudimlinoo/Pudimlinoo-script/main/buildaboat.Lua"))()
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
