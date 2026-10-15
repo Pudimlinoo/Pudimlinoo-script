@@ -87,7 +87,7 @@ create("TextLabel", {
     Position = UDim2.new(1, -252, 0, 20),
     Size = UDim2.fromOffset(190, 24),
     BackgroundTransparency = 1,
-    Text = "V008  /  BUILD A BOAT",
+    Text = "V016C8  /  BUILD A BOAT",
     Font = Enum.Font.GothamMedium,
     TextSize = 11,
     TextColor3 = Theme.Muted,
@@ -134,6 +134,7 @@ create("UIPadding", {PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 1
 
 local tabs = {}
 local currentTab
+local categoryFilters = {}
 local emptySearch = create("TextLabel", {Size = UDim2.new(1, -16, 0, 56),
     Position = UDim2.fromOffset(8, 8), BackgroundTransparency = 1,
     Text = "Nenhum controle encontrado nesta aba.", TextColor3 = Theme.Muted,
@@ -142,6 +143,10 @@ local emptySearch = create("TextLabel", {Size = UDim2.new(1, -16, 0, 56),
 local function filterPage()
     if not currentTab then return end
     local query = string.lower(search.Text)
+    if categoryFilters[currentTab.page] then
+        emptySearch.Visible = not categoryFilters[currentTab.page](query)
+        return
+    end
     local found = false
     for _, item in ipairs(currentTab.page:GetChildren()) do
         if item:IsA("GuiObject") then
@@ -220,6 +225,8 @@ local tabHome = createTab("Início")
 local tabPlayer = createTab("Player")
 local tabAutoFarm = createTab("Auto Farm")
 local tabStats = createTab("Estatísticas")
+local tabMagnet = createTab("Ímã")
+local tabBuild = createTab("Build")
 local tabVisual = createTab("Visual")
 local tabSettings = createTab("Ajustes")
 selectTab(tabs[1])
@@ -438,7 +445,7 @@ local controlOrder = {}
 local function control(page, className, text, height)
     controlOrder[page] = (controlOrder[page] or 0) + 1
     local object = create(className, {
-        Size = UDim2.new(1, 0, 0, height or 44), LayoutOrder = controlOrder[page],
+        Size = UDim2.new(1, 0, 0, height or ((page == tabBuild or page == tabMagnet) and 38 or 44)), LayoutOrder = controlOrder[page],
         BackgroundColor3 = Theme.Button, BorderSizePixel = 0,
         Text = text, TextColor3 = Theme.Text, TextSize = 13,
         TextWrapped = true, Font = Enum.Font.GothamMedium,
@@ -461,7 +468,7 @@ local function control(page, className, text, height)
 end
 local function toggle(page, name, callback)
     local enabled = false
-    local button = control(page, "TextButton", "", 46)
+    local button = control(page, "TextButton", "", (page == tabBuild or page == tabMagnet) and 40 or 46)
     button:SetAttribute("SearchText", name)
     create("TextLabel", {Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -78, 1, 0),
         BackgroundTransparency = 1, Text = name, Font = Enum.Font.GothamMedium,
@@ -488,8 +495,9 @@ local function toggle(page, name, callback)
     return set
 end
 local function numberField(page, name, initial, minimum, maximum, callback)
+    local compact = page == tabBuild or page == tabMagnet
     controlOrder[page] = (controlOrder[page] or 0) + 1
-    local row = create("Frame", {Size = UDim2.new(1, 0, 0, 82), LayoutOrder = controlOrder[page],
+    local row = create("Frame", {Size = UDim2.new(1, 0, 0, compact and 68 or 82), LayoutOrder = controlOrder[page],
         BackgroundColor3 = Theme.Second, BorderSizePixel = 0}, page)
     row:SetAttribute("SearchText", name)
     round(row, 8); edge(row)
@@ -503,8 +511,8 @@ local function numberField(page, name, initial, minimum, maximum, callback)
     round(box, 6)
     box.ClearTextOnFocus = false
     local current = initial
-    local hit = create("TextButton", {Size = UDim2.new(1, -24, 0, 36),
-        Position = UDim2.fromOffset(12, 38), Text = "", BorderSizePixel = 0}, row)
+    local hit = create("TextButton", {Size = UDim2.new(1, -24, 0, compact and 30 or 36),
+        Position = UDim2.fromOffset(12, compact and 32 or 38), Text = "", BorderSizePixel = 0}, row)
     hit.BackgroundTransparency = 1
     hit.AutoButtonColor = false
     local bar = create("Frame", {Size = UDim2.new(1, -20, 0, 6),
@@ -573,6 +581,138 @@ local function numberField(page, name, initial, minimum, maximum, callback)
         set = function(value) show(value, true) end,
     }
     return function(value) show(value, false) end
+end
+
+-- Listas abertas no proprio painel, sem cobrir os outros controles.
+local function dropdown(page, button, provider, choose, selected)
+    controlOrder[page] = (controlOrder[page] or 0) + 1
+    local popup = create("Frame", {Size = UDim2.new(1, 0, 0, 190),
+        LayoutOrder = controlOrder[page], BackgroundColor3 = Theme.Second,
+        BorderSizePixel = 0, Visible = false}, page)
+    round(popup, 8); edge(popup)
+    popup:SetAttribute("SearchText", button:GetAttribute("SearchText") or button.Text)
+    popup:SetAttribute("Dropdown", true)
+    popup:SetAttribute("Expanded", false)
+    local filter = create("TextBox", {Position = UDim2.fromOffset(8, 8),
+        Size = UDim2.new(1, -16, 0, 30), Text = "", PlaceholderText = "Buscar opção…",
+        ClearTextOnFocus = false, TextSize = 12, Font = Enum.Font.Gotham,
+        TextColor3 = Theme.Text, PlaceholderColor3 = Theme.Muted,
+        BackgroundColor3 = Theme.Button, BorderSizePixel = 0}, popup)
+    round(filter, 6)
+    local list = create("ScrollingFrame", {Position = UDim2.fromOffset(8, 44),
+        Size = UDim2.new(1, -16, 1, -52), BackgroundTransparency = 1, BorderSizePixel = 0,
+        CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollingDirection = Enum.ScrollingDirection.Y, ScrollBarThickness = 3,
+        ScrollBarImageColor3 = Theme.Red}, popup)
+    create("UIListLayout", {Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder}, list)
+    local rows = {}
+    local empty = create("TextLabel", {Size = UDim2.new(1, -6, 0, 34), Text = "Nenhuma opção disponível",
+        TextColor3 = Theme.Muted, TextSize = 12, Font = Enum.Font.Gotham,
+        BackgroundTransparency = 1, Visible = false}, list)
+    local function filterOptions()
+        local count, query = 0, string.lower(filter.Text)
+        for _, row in ipairs(rows) do
+            row.Visible = query == "" or string.find(string.lower(row.Text), query, 1, true) ~= nil
+            if row.Visible then count = count + 1 end
+        end
+        empty.Visible = count == 0
+        popup.Size = UDim2.new(1, 0, 0, 52 + math.min(math.max(count, 1), 4) * 36)
+        list.CanvasPosition = Vector2.zero
+    end
+    filter:GetPropertyChangedSignal("Text"):Connect(filterOptions)
+    button.Activated:Connect(function()
+        local expanded = not popup:GetAttribute("Expanded")
+        for _, child in ipairs(page:GetChildren()) do
+            if child:GetAttribute("Dropdown") then child:SetAttribute("Expanded", false); child.Visible = false end
+        end
+        popup:SetAttribute("Expanded", expanded)
+        if expanded then
+            for _, row in ipairs(rows) do row:Destroy() end
+            table.clear(rows)
+            filter.Text = ""
+            local options = provider()
+            local value = selected()
+            for index, option in ipairs(options) do
+                local row = create("TextButton", {Size = UDim2.new(1, -6, 0, 32), LayoutOrder = index,
+                    Text = (option.value == value and "✓  " or "") .. option.label,
+                    BackgroundColor3 = option.value == value and Theme.DarkRed or Theme.Button,
+                    TextColor3 = Theme.Text, TextSize = 12, Font = Enum.Font.GothamMedium,
+                    BorderSizePixel = 0, AutoButtonColor = false, TextWrapped = true}, list)
+                round(row, 6)
+                table.insert(rows, row)
+                row.Activated:Connect(function()
+                    choose(option.value)
+                    popup:SetAttribute("Expanded", false)
+                    popup.Visible = false
+                    filterPage()
+                end)
+            end
+            filterOptions()
+        end
+        popup.Visible = expanded
+        filterPage()
+    end)
+end
+local function indexedOptions(names)
+    local options = {}
+    for index, name in ipairs(names) do table.insert(options, {value = index, label = name}) end
+    return options
+end
+local function categories(page, definitions)
+    local rows, assigned = {}, {}
+    for _, row in ipairs(page:GetChildren()) do if row:IsA("GuiObject") then table.insert(rows, row) end end
+    table.sort(rows, function(a,b) return a.LayoutOrder < b.LayoutOrder end)
+    local groups = {}
+    for _, definition in ipairs(definitions) do
+        local group = {name = definition[1], expanded = definition[3] == true, rows = {}}
+        for _, row in ipairs(rows) do
+            if table.find(definition[2], row:GetAttribute("SearchText")) then
+                table.insert(group.rows, row); assigned[row] = true
+            end
+        end
+        table.insert(groups, group)
+    end
+    local order, pinned = 0, {}
+    for _, row in ipairs(rows) do
+        if not assigned[row] then order = order + 1; row.LayoutOrder = order; table.insert(pinned, row) end
+    end
+    local function matches(row, query)
+        local text = row:GetAttribute("SearchText") or ""
+        if row:IsA("TextLabel") or row:IsA("TextButton") then text = text .. " " .. row.Text end
+        return query == "" or string.find(string.lower(text), query, 1, true) ~= nil
+    end
+    local function render(query)
+        local found = false
+        for _, row in ipairs(pinned) do row.Visible = matches(row, query); found = found or row.Visible end
+        for _, group in ipairs(groups) do
+            local groupMatch = query ~= "" and string.find(string.lower(group.name), query, 1, true) ~= nil
+            local any = query == ""
+            for _, row in ipairs(group.rows) do
+                local matched = groupMatch or matches(row, query)
+                any = any or matched
+                row.Visible = matched and (group.expanded or query ~= "")
+                    and (not row:GetAttribute("Dropdown") or row:GetAttribute("Expanded") == true)
+            end
+            group.header.Text = (group.expanded and "▾  " or "▸  ") .. group.name
+            group.header.Visible = any
+            found = found or any
+        end
+        return found
+    end
+    for _, group in ipairs(groups) do
+        group.header = control(page, "TextButton", group.name, 32)
+        group.header.BackgroundColor3 = Theme.DarkRed
+        order = order + 1; group.header.LayoutOrder = order
+        for _, row in ipairs(group.rows) do order = order + 1; row.LayoutOrder = order end
+        group.header.Activated:Connect(function()
+            group.expanded = not group.expanded
+            render(string.lower(search.Text))
+        end)
+    end
+    local layout = page:FindFirstChildOfClass("UIListLayout")
+    if layout then layout.Padding = UDim.new(0, 6) end
+    categoryFilters[page] = render
+    render("")
 end
 
 local alive = true
@@ -968,6 +1108,756 @@ control(tabSettings, "TextButton", "Fechar e remover HUD").Activated:Connect(fun
 storageStatus = control(tabSettings, "TextLabel", "Carregando preferências…", 76)
 control(tabSettings, "TextButton", "Salvar preferências agora").Activated:Connect(saveSettings)
 
+local releaseMagnet
+do
+    local magnet = {enabled = false, holding = false, toggleMode = false, radius = 20, reach = 150,
+        response = 100, speed = 80, limit = 20, depth = 35, mode = 1, formation = 12,
+        angle = 0, orbitHeight = 5, orbitRate = 70, tornadoHeight = 40, ghost = false,
+        capture = 0, capturing = false, items = {}}
+    local modeNames = {"Normal", "Centralizar no cursor", "Círculo", "Órbita",
+        "Órbita no jogador", "Círculo no jogador", "Tornado", "Tornado no cursor"}
+    local function followsPlayer(mode) return mode >= 5 and mode <= 7 end
+    local mouse = player:GetMouse()
+    local tornadoCenter
+    local groupCenter
+    local recoveryLoad = 0
+    local splitScan = 0
+    local lastCursorTarget
+    local aimParams = RaycastParams.new()
+    aimParams.FilterType = Enum.RaycastFilterType.Exclude
+    local aimFilterDirty = true
+    local function rebuildAimFilter()
+        local excluded = {}
+        for _, other in ipairs(Players:GetPlayers()) do
+            if other.Character then table.insert(excluded, other.Character) end
+        end
+        for _, item in ipairs(magnet.items) do
+            for part in pairs(item.collisions) do
+                if part.Parent then table.insert(excluded, part) end
+            end
+        end
+        aimParams.FilterDescendantsInstances = excluded
+        aimFilterDirty = false
+    end
+    control(tabMagnet, "TextLabel", "ÍMÃ DE BLOCOS", 28).BackgroundTransparency = 1
+    local magnetStatus = control(tabMagnet, "TextLabel", "Desligado", 52)
+    local function updateCollisions(item, ghost)
+        for part, saved in pairs(item.collisions) do
+            if part.Parent then
+                -- As pecas originais sao restauradas, inclusive as que ja nao colidiam.
+                local collide = not ghost and saved.collide or false
+                local touch = not ghost and saved.touch or false
+                if part.CanCollide ~= collide then part.CanCollide = collide end
+                if part.CanTouch ~= touch then part.CanTouch = touch end
+            end
+        end
+    end
+    local function removeActuators(item)
+        if item.align then item.align:Destroy() end
+        if item.lift then item.lift:Destroy() end
+        if item.attachment then item.attachment:Destroy() end
+    end
+    local function discard(item, preserveCollisions)
+        removeActuators(item)
+        if item.highlight then item.highlight:Destroy() end
+        if not preserveCollisions then updateCollisions(item, false) end
+    end
+    releaseMagnet = function()
+        magnet.holding = false
+        magnet.capture = magnet.capture + 1
+        magnet.capturing = false
+        for _, item in ipairs(magnet.items) do discard(item) end
+        table.clear(magnet.items)
+        tornadoCenter = nil
+        groupCenter = nil
+        recoveryLoad = 0
+        lastCursorTarget = nil
+        aimFilterDirty = true
+        magnetStatus.Text = not magnet.enabled and "Desligado" or (magnet.toggleMode
+            and "Clique para capturar • clique novamente para soltar"
+            or followsPlayer(magnet.mode)
+            and "Clique nos blocos para prender o grupo ao jogador"
+            or "Segure o clique sobre os blocos soltos")
+    end
+    local setEnabled = toggle(tabMagnet, "Ativar ímã", function(value)
+        magnet.enabled = value
+        releaseMagnet()
+    end)
+    toggle(tabMagnet, "Modo toggle (clique para prender/soltar)", function(value)
+        magnet.toggleMode = value
+        releaseMagnet()
+    end)
+    local modeButton = control(tabMagnet, "TextButton", "Modo: Normal  ▾")
+    modeButton:SetAttribute("SearchText", "Modo do ímã")
+    local function setMode(value)
+        magnet.mode = math.clamp(math.floor(value), 1, #modeNames)
+        magnet.angle = 0
+        tornadoCenter = nil
+        modeButton.Text = "Modo: " .. modeNames[magnet.mode] .. "  ▾"
+        if not magnet.capturing and (not magnet.holding or (not magnet.toggleMode and not followsPlayer(magnet.mode)
+            and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1))) then releaseMagnet() end
+        preferencesChanged()
+    end
+    dropdown(tabMagnet, modeButton, function() return indexedOptions(modeNames) end,
+        setMode, function() return magnet.mode end)
+    preferences.controls["Ímã/Modo"] = {kind = "number", get = function() return magnet.mode end, set = setMode}
+    numberField(tabMagnet, "Raio de captura (studs)", 20, 5, 1000, function(value) magnet.radius = value end)
+    numberField(tabMagnet, "Alcance máximo (studs)", 150, 20, 2000, function(value) magnet.reach = value end)
+    numberField(tabMagnet, "Resposta do movimento (%)", 100, 5, 500, function(value) magnet.response = value end)
+    numberField(tabMagnet, "Velocidade dos blocos (studs/s)", 80, 5, 1000, function(value) magnet.speed = value end)
+    numberField(tabMagnet, "Raio do círculo / órbita", 12, 5, 500, function(value) magnet.formation = value end)
+    local showDepth = numberField(tabMagnet, "Distância do cursor (studs)", 35, 5, 2500, function(value) magnet.depth = value end)
+    numberField(tabMagnet, "Altura da formação no jogador", 5, 0, 100, function(value) magnet.orbitHeight = value end)
+    numberField(tabMagnet, "Altura do tornado", 40, 5, 500, function(value) magnet.tornadoHeight = value end)
+    numberField(tabMagnet, "Velocidade da órbita (graus/s)", 70, 0, 500, function(value) magnet.orbitRate = value end)
+    numberField(tabMagnet, "Limite de conjuntos de blocos", 20, 1, 500, function(value) magnet.limit = math.floor(value) end)
+    local setGhost = toggle(tabMagnet, "Atravessar obstáculos", function(value)
+        magnet.ghost = value
+        for _, item in ipairs(magnet.items) do updateCollisions(item, value) end
+    end)
+    setGhost(true)
+    control(tabMagnet, "TextButton", "Soltar todos os blocos").Activated:Connect(releaseMagnet)
+    control(tabMagnet, "TextButton", "Resetar opções do ímã").Activated:Connect(function()
+        releaseMagnet()
+        setEnabled(false)
+        magnet.angle = 0
+        local defaults = { ["Modo"] = 1, ["Raio de captura (studs)"] = 20,
+            ["Modo toggle (clique para prender/soltar)"] = false,
+            ["Alcance máximo (studs)"] = 150, ["Resposta do movimento (%)"] = 100,
+            ["Velocidade dos blocos (studs/s)"] = 80,
+            ["Distância do cursor (studs)"] = 35,
+            ["Altura da formação no jogador"] = 5, ["Velocidade da órbita (graus/s)"] = 70,
+            ["Altura do tornado"] = 40,
+            ["Atravessar obstáculos"] = true,
+            ["Raio do círculo / órbita"] = 12, ["Limite de conjuntos de blocos"] = 20 }
+        for name, value in pairs(defaults) do preferences.controls["Ímã/" .. name].set(value) end
+        magnetStatus.Text = "Ímã desligado • opções restauradas"
+        saveSettings()
+    end)
+
+    local function formationOffset(mode, index, count, radius, angle, original, tornadoHeight)
+        if mode == 1 then return original end
+        if mode == 2 then return Vector3.new(0, 0, 0) end
+        if mode == 7 or mode == 8 then
+            local level = count > 1 and (index - 1) / (count - 1) or 0
+            local ringRadius = radius * (0.2 + 0.8 * level)
+            -- Distribuicao angular uniforme, base estreita e topo largo.
+            local theta = angle + (index - 1) * math.pi * (3 - math.sqrt(5))
+            return Vector3.new(math.cos(theta) * ringRadius, level * (tornadoHeight or 40),
+                math.sin(theta) * ringRadius)
+        end
+        local theta = 2 * math.pi * (index - 1) / math.max(1, count) + ((mode == 4 or mode == 5) and angle or 0)
+        return Vector3.new(math.cos(theta) * radius, 0, math.sin(theta) * radius)
+    end
+    local function forceFor(part)
+        -- Forca ajustada a massa; dispensa um slider de unidades fisicas.
+        return math.clamp(part.AssemblyMass * (workspace.Gravity + 700), 20000, 50000000)
+    end
+    local function permitted(part, allowAnchored)
+        if not part:IsA("BasePart") or (part.Anchored and not allowAnchored) then return false end
+        local item = part
+        while item and item ~= workspace do
+            if item:IsA("Tool") or item:IsA("Accessory")
+                or (item:IsA("Model") and item:FindFirstChildOfClass("Humanoid")) then return false end
+            if string.sub(item.Name, 1, 9) == "PudimHub_" then return false end
+            item = item.Parent
+        end
+        if (part:IsA("Seat") or part:IsA("VehicleSeat")) and part.Occupant then return false end
+        return true
+    end
+    local function ensureActuators(item)
+        if not item.attachment or item.attachment.Parent ~= item.part
+            or not item.align or item.align.Parent ~= item.part
+            or not item.lift or item.lift.Parent ~= item.part then
+            removeActuators(item)
+            item.attachment = create("Attachment", {Name = "PudimHub_MagnetAttachment",
+                Position = item.part.CFrame:PointToObjectSpace(item.part.AssemblyCenterOfMass)}, item.part)
+            item.align = create("AlignPosition", {Name = "PudimHub_MagnetForce",
+                Mode = Enum.PositionAlignmentMode.OneAttachment, Attachment0 = item.attachment,
+                ApplyAtCenterOfMass = true, RigidityEnabled = false,
+                ForceLimitMode = Enum.ForceLimitMode.Magnitude, MaxForce = forceFor(item.part),
+                MaxVelocity = magnet.speed, Responsiveness = math.clamp(magnet.response * 0.4, 5, 200),
+                Position = item.command}, item.part)
+            item.lift = create("VectorForce", {Name = "PudimHub_MagnetSupport",
+                Attachment0 = item.attachment, RelativeTo = Enum.ActuatorRelativeTo.World,
+                ApplyAtCenterOfMass = true, Force = Vector3.zero}, item.part)
+        end
+        item.align.Enabled = true
+        item.lift.Enabled = true
+        item.align.Attachment0 = item.attachment
+        item.lift.Attachment0 = item.attachment
+        item.lift.Force = Vector3.new(0, item.part.AssemblyMass * workspace.Gravity, 0)
+    end
+    local function beginCapture()
+        releaseMagnet()
+        local capture = magnet.capture
+        local character, humanoid, rootPart = characterParts()
+        if not rootPart or not humanoid or humanoid.Health <= 0 or farm.enabled then
+            magnetStatus.Text = "Aguarde o personagem e desligue o farm para usar o ímã"
+            return
+        end
+        magnet.capturing = true
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = {character}
+        local ray = mouse.UnitRay
+        local hit = workspace:Raycast(ray.Origin, ray.Direction * (magnet.reach + 500), params)
+        if not hit or (hit.Position - rootPart.Position).Magnitude > magnet.reach then
+            magnet.capturing = false
+            magnetStatus.Text = "Aponte para uma área dentro do alcance"
+            return
+        end
+        local overlap = OverlapParams.new()
+        overlap.FilterType = Enum.RaycastFilterType.Exclude
+        local excluded = {}
+        for _, other in ipairs(Players:GetPlayers()) do
+            if other.Character then table.insert(excluded, other.Character) end
+        end
+        overlap.FilterDescendantsInstances = excluded
+        overlap.MaxParts = math.min(10000, math.max(1000, magnet.limit * 20))
+        local parts = workspace:GetPartBoundsInRadius(hit.Position, magnet.radius, overlap)
+        -- Inclui PPart de blocos do jogo que a consulta espacial pode omitir (CanQuery=false).
+        local candidates = {}
+        for _, part in ipairs(parts) do candidates[part] = true end
+        local blocks = workspace:FindFirstChild("Blocks")
+        local scanned = 0
+        if blocks then
+            for _, folder in ipairs(blocks:GetChildren()) do
+                for _, model in ipairs(folder:GetChildren()) do
+                    scanned = scanned + 1
+                    if scanned % 100 == 0 then
+                        task.wait()
+                        if not alive or capture ~= magnet.capture then return end
+                    end
+                    local part = model:IsA("BasePart") and model or model:FindFirstChild("PPart")
+                    if part and part:IsA("BasePart") and not candidates[part]
+                        and (part.Position - hit.Position).Magnitude <= magnet.radius + part.Size.Magnitude / 2 then
+                        candidates[part] = true
+                        table.insert(parts, part)
+                    end
+                end
+            end
+        end
+        table.sort(parts, function(a, b)
+            return (a.Position - hit.Position).Magnitude < (b.Position - hit.Position).Magnitude
+        end)
+        local seen = {}
+        magnet.capturing = true
+        for partIndex, part in ipairs(parts) do
+            if partIndex % 25 == 0 then task.wait() end
+            if not alive or capture ~= magnet.capture or not magnet.enabled then return end
+            if farm.enabled then releaseMagnet(); return end
+            if #magnet.items >= magnet.limit then break end
+            local assembly = part.AssemblyRootPart or part
+            if not seen[assembly] and not seen[part] then
+                seen[assembly] = true
+                local accepted = assembly:IsDescendantOf(workspace) and permitted(assembly) and permitted(part)
+                    and (assembly.Position - rootPart.Position).Magnitude <= magnet.reach
+                local joined = {}
+                if accepted then
+                    joined = assembly:GetConnectedParts(true)
+                    if #joined > 1000 then accepted = false end
+                    if accepted then
+                        for _, connected in ipairs(joined) do
+                            if not permitted(connected) then accepted = false; break end
+                        end
+                    end
+                end
+                if accepted then
+                    local collisions = {}
+                    for _, connected in ipairs(joined) do
+                        seen[connected] = true
+                        collisions[connected] = {collide = connected.CanCollide, touch = connected.CanTouch}
+                    end
+                    collisions[assembly] = {collide = assembly.CanCollide, touch = assembly.CanTouch}
+                    local massCenter = assembly.AssemblyCenterOfMass
+                    local highlight = #magnet.items < 24 and create("Highlight", {Name = "PudimHub_MagnetHighlight",
+                        Adornee = assembly, FillColor = Theme.Red, FillTransparency = 0.85,
+                        OutlineColor = Theme.Red, OutlineTransparency = 0.15,
+                        DepthMode = Enum.HighlightDepthMode.Occluded}, assembly)
+                    local item = {part = assembly, collisions = collisions,
+                        highlight = highlight, offset = massCenter - hit.Position,
+                        command = massCenter, stalled = 0, lastPosition = massCenter}
+                    table.insert(magnet.items, item)
+                    ensureActuators(item)
+                    updateCollisions(item, magnet.ghost)
+                end
+            end
+        end
+        magnet.capturing = false
+        magnet.depth = math.clamp((hit.Position - ray.Origin).Magnitude, 5, 2500)
+        lastCursorTarget = hit.Position
+        aimFilterDirty = true
+        showDepth(magnet.depth)
+        magnet.angle = 0
+        for index, item in ipairs(magnet.items) do
+            item.slot, item.slotCount = index, #magnet.items
+        end
+        magnet.holding = #magnet.items > 0
+        magnetStatus.Text = magnet.holding and (modeNames[magnet.mode] .. " • selecionados: " .. #magnet.items)
+            or "Nenhum bloco solto encontrado nesta área"
+    end
+    connect(UserInputService.InputBegan, function(input, processed)
+        if not magnet.enabled or processed or UserInputService:GetFocusedTextBox()
+            or input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        local position = UserInputService:GetMouseLocation()
+        for _, object in ipairs(playerGui:GetGuiObjectsAtPosition(position.X, position.Y)) do
+            if object:IsDescendantOf(frame) and frame.Visible then return end
+        end
+        if magnet.toggleMode and (magnet.holding or magnet.capturing) then
+            releaseMagnet()
+            return
+        end
+        local ok, message = pcall(beginCapture)
+        if not ok then
+            releaseMagnet()
+            magnetStatus.Text = "Falha ao capturar blocos; veja o console"
+            warn("[PudimHub Ímã] " .. tostring(message))
+        end
+    end)
+    connect(UserInputService.InputEnded, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and not magnet.toggleMode and not followsPlayer(magnet.mode)
+            and (magnet.holding or magnet.capturing) then releaseMagnet() end
+    end)
+    connect(UserInputService.WindowFocusReleased, releaseMagnet)
+    connect(player.CharacterRemoving, releaseMagnet)
+    connect(UserInputService.InputChanged, function(input, processed)
+        if magnet.holding and not processed and input.UserInputType == Enum.UserInputType.MouseWheel then
+            if followsPlayer(magnet.mode) then
+                preferences.controls["Ímã/Raio do círculo / órbita"].set(magnet.formation + input.Position.Z * 2)
+            else
+                preferences.controls["Ímã/Distância do cursor (studs)"].set(magnet.depth + input.Position.Z * 10)
+            end
+        end
+    end)
+    connect(RunService.Heartbeat, function(dt)
+        if not magnet.holding then return end
+        local _, humanoid, rootPart = characterParts()
+        if not rootPart or not humanoid or humanoid.Health <= 0 or farm.enabled then releaseMagnet(); return end
+        local ray = mouse.UnitRay
+        local target
+        if followsPlayer(magnet.mode) then
+            target = rootPart.Position + Vector3.new(0, magnet.orbitHeight, 0)
+        else
+            if aimFilterDirty then rebuildAimFilter() end
+            -- O alcance e medido a partir do personagem, nao a partir da camera.
+            local cameraOffset = ray.Origin - rootPart.Position
+            local projection = cameraOffset:Dot(ray.Direction)
+            local discriminant = projection * projection - (cameraOffset:Dot(cameraOffset) - magnet.reach ^ 2)
+            local rayLength = discriminant >= 0 and (-projection + math.sqrt(discriminant)) or 0
+            if rayLength > 0 then
+                local hit = workspace:Raycast(ray.Origin, ray.Direction * rayLength, aimParams)
+                if hit then
+                    -- Mira direta, sem projetar no chao nem somar a altura de todo o grupo.
+                    target = ray.Origin + ray.Direction * math.max(0, hit.Distance - 2)
+                    magnet.depth = math.clamp(hit.Distance, 5, 2500)
+                else
+                    target = ray.Origin + ray.Direction * math.min(magnet.depth, rayLength)
+                end
+            else
+                -- Conserva o centro, mas continua a animacao e a recuperacao do grupo.
+                target = lastCursorTarget or (rootPart.Position + ray.Direction * math.min(magnet.depth, magnet.reach))
+            end
+            lastCursorTarget = target
+        end
+        local tornado = magnet.mode == 7 or magnet.mode == 8
+        local pace = 1 - math.min(0.65, recoveryLoad * 0.65)
+        if tornado then
+            if magnet.mode == 8 then target = target + Vector3.new(0, 5, 0) end
+            tornadoCenter = tornadoCenter or target
+            local delta = target - tornadoCenter
+            -- Reserva velocidade para o giro e para os blocos atrasados recuperarem a formacao.
+            local step = magnet.speed * 0.35 * pace * math.min(dt, 0.1)
+            tornadoCenter = delta.Magnitude > step and (tornadoCenter + delta.Unit * step) or target
+            target = tornadoCenter
+            groupCenter = target
+        else
+            tornadoCenter = nil
+            groupCenter = groupCenter or target
+            local delta = target - groupCenter
+            local step = magnet.speed * 0.55 * math.min(dt, 0.1)
+            groupCenter = delta.Magnitude > step and (groupCenter + delta.Unit * step) or target
+            target = groupCenter
+        end
+        local angularRate = math.min(math.rad(magnet.orbitRate), magnet.speed * (tornado and 0.35 or 0.55) / math.max(1, magnet.formation)) * pace
+        magnet.angle = (magnet.angle + math.min(dt, 0.1) * angularRate) % (2 * math.pi)
+        local unresponsive = 0
+        local paused = 0
+        local waiting = 0
+        local recovering = 0
+        local occupiedAssemblies = {}
+        -- Recupera partes da selecao que se separaram de um conjunto soldado.
+        splitScan = splitScan + dt
+        if splitScan >= 0.4 then
+            splitScan = 0
+            local tracked, additions = {}, {}
+            for _, item in ipairs(magnet.items) do
+                tracked[item.part.AssemblyRootPart or item.part] = true
+            end
+            for _, item in ipairs(magnet.items) do
+                for part in pairs(item.collisions) do
+                    if part:IsDescendantOf(workspace) then
+                        local root = part.AssemblyRootPart or part
+                        if not tracked[root] and permitted(root) and permitted(part)
+                            and #magnet.items + #additions < magnet.limit then
+                            tracked[root] = true
+                            local savedParts = {}
+                            for member, saved in pairs(item.collisions) do
+                                if (member.AssemblyRootPart or member) == root then savedParts[member] = saved end
+                            end
+                            table.insert(additions, {part = root, collisions = savedParts,
+                                offset = item.offset, command = root.AssemblyCenterOfMass,
+                                lastPosition = root.AssemblyCenterOfMass, stalled = 0,
+                                slot = item.slot, slotCount = item.slotCount})
+                        end
+                    end
+                end
+            end
+            for _, item in ipairs(additions) do table.insert(magnet.items, item) end
+            if #additions > 0 then
+                aimFilterDirty = true
+                for index, item in ipairs(magnet.items) do
+                    item.slot, item.slotCount = index, #magnet.items
+                end
+            end
+        end
+        for index = #magnet.items, 1, -1 do
+            local item = magnet.items[index]
+            if not item.part:IsDescendantOf(workspace) then
+                for part in pairs(item.collisions) do
+                    if part:IsDescendantOf(workspace) and permitted(part, true) then
+                        item.part = part
+                        if item.highlight and item.highlight.Parent then item.highlight.Adornee = part end
+                        break
+                    end
+                end
+            end
+            local assembly = item.part.AssemblyRootPart or item.part
+            if not item.part:IsDescendantOf(workspace) then
+                -- Streaming pode retirar o bloco temporariamente; conserva a selecao ate voltar.
+                if item.align and item.align.Parent then item.align.Enabled = false end
+                if item.lift and item.lift.Parent then item.lift.Enabled = false end
+                waiting = waiting + 1
+            elseif not permitted(item.part, true) or not permitted(assembly, true) then
+                discard(item); table.remove(magnet.items, index)
+            elseif occupiedAssemblies[assembly] then
+                -- Conjuntos unidos durante o arraste usam apenas um motor.
+                local keeper = occupiedAssemblies[assembly]
+                for part, saved in pairs(item.collisions) do
+                    if not keeper.collisions[part] then keeper.collisions[part] = saved end
+                end
+                discard(item, true); table.remove(magnet.items, index)
+            elseif assembly.Anchored or item.part.Anchored then
+                occupiedAssemblies[assembly] = item
+                if item.align then item.align.Enabled = false end
+                if item.lift then item.lift.Enabled = false end
+                paused = paused + 1
+            else
+                occupiedAssemblies[assembly] = item
+                ensureActuators(item)
+                if magnet.ghost then updateCollisions(item, true) end
+                local destination = target + formationOffset(magnet.mode, item.slot or index, item.slotCount or #magnet.items,
+                    magnet.formation, magnet.angle, item.offset, magnet.tornadoHeight)
+                item.command = destination
+                item.attachment.Position = item.part.CFrame:PointToObjectSpace(item.part.AssemblyCenterOfMass)
+                item.align.Position = item.command
+                local current = item.part.AssemblyCenterOfMass
+                local distance = (item.command - current).Magnitude
+                local catchingUp = distance > math.max(8, magnet.speed * 0.15)
+                    or current.Y < item.command.Y - 4
+                local force = forceFor(item.part)
+                if catchingUp then
+                    force = math.min(100000000, force + item.part.AssemblyMass * math.min(2000, distance * 30))
+                    recovering = recovering + 1
+                end
+                item.align.MaxForce = force
+                item.align.Responsiveness = math.clamp(math.max(magnet.response * 0.4,
+                    catchingUp and 120 or (tornado and 80 or 5)), 5, 200)
+                item.align.MaxVelocity = catchingUp and math.min(1500,
+                    magnet.speed + math.min(magnet.speed, distance * 2)) or magnet.speed
+                if (item.command - current).Magnitude > 8 and (current - item.lastPosition).Magnitude < 0.05 then
+                    item.stalled = item.stalled + dt
+                else item.stalled = 0 end
+                if item.stalled > 2 then unresponsive = unresponsive + 1 end
+                item.lastPosition = current
+            end
+        end
+        recoveryLoad = recovering / math.max(1, #magnet.items)
+        if #magnet.items == 0 then releaseMagnet()
+        else
+            magnetStatus.Text = modeNames[magnet.mode] .. " • selecionados: " .. #magnet.items
+                .. (recovering > 0 and (" • recuperando: " .. recovering) or "")
+                .. (waiting > 0 and (" • aguardando retorno: " .. waiting) or "")
+                .. (unresponsive > 0 and (" • sem acompanhar: " .. unresponsive) or "")
+                .. (paused > 0 and (" • ancorados: " .. paused) or "")
+                .. (followsPlayer(magnet.mode) and " • use Soltar para liberar" or "")
+        end
+    end)
+end
+
+local stopBuild
+do
+    local build = {block = "WoodBlock", pattern = 1, location = 1, count = 20, height = 20, spacing = 6, rate = 6,
+        busy = false, token = 0, pending = false, created = {}}
+    local models = {"Blocos no ar para ímã", "Grade", "Torre"}
+    local choices = {}
+    control(tabBuild, "TextLabel", "CONSTRUÇÃO AUTOMÁTICA", 28).BackgroundTransparency = 1
+    local buildStatus = control(tabBuild, "TextLabel", "Escolha o bloco e o modelo", 64)
+    local blockButton = control(tabBuild, "TextButton", "Bloco: WoodBlock")
+    blockButton:SetAttribute("SearchText", "Bloco")
+    local function updateBlockButton()
+        local data = player:FindFirstChild("Data")
+        local entry = data and data:FindFirstChild(build.block)
+        local amount = entry and (entry:IsA("IntValue") or entry:IsA("NumberValue")) and entry.Value or nil
+        blockButton.Text = "Bloco: " .. build.block .. (amount and ("  •  " .. tostring(amount)) or "") .. "  ▾"
+    end
+    local function inventory()
+        table.clear(choices)
+        local data = player:FindFirstChild("Data")
+        if data then
+            for _, entry in ipairs(data:GetChildren()) do
+                if (entry:IsA("IntValue") or entry:IsA("NumberValue"))
+                    and entry.Value > 0 and entry.Name:match("Block$") then
+                    table.insert(choices, entry.Name)
+                end
+            end
+        end
+        table.sort(choices)
+        updateBlockButton()
+        return #choices
+    end
+    dropdown(tabBuild, blockButton, function()
+        inventory()
+        local options = {}
+        local data = player:FindFirstChild("Data")
+        for _, name in ipairs(choices) do
+            local entry = data and data:FindFirstChild(name)
+            table.insert(options, {value = name, label = name .. "  •  " .. tostring(entry and entry.Value or 0)})
+        end
+        return options
+    end, function(value)
+        build.block = value
+        updateBlockButton(); preferencesChanged()
+    end, function() return build.block end)
+    control(tabBuild, "TextButton", "Atualizar lista de blocos").Activated:Connect(function()
+        buildStatus.Text = "Tipos disponíveis: " .. inventory() .. " • abra a lista para escolher"
+    end)
+    preferences.controls["Build/Bloco"] = {kind = "string", get = function() return build.block end,
+        set = function(value)
+            if #value <= 80 and value:match("^[%w_]+Block$") then
+                build.block = value; updateBlockButton()
+            end
+        end}
+    local patternButton = control(tabBuild, "TextButton", "Modelo: " .. models[1] .. "  ▾")
+    patternButton:SetAttribute("SearchText", "Modelo")
+    local function setPattern(value)
+        build.pattern = math.clamp(math.floor(value), 1, #models)
+        patternButton.Text = "Modelo: " .. models[build.pattern] .. "  ▾"
+        preferencesChanged()
+    end
+    dropdown(tabBuild, patternButton, function() return indexedOptions(models) end,
+        setPattern, function() return build.pattern end)
+    preferences.controls["Build/Modelo"] = {kind = "number", get = function() return build.pattern end, set = setPattern}
+    local locationNames = {"Ponto fixo da base", "Acima do personagem"}
+    local locationButton = control(tabBuild, "TextButton", "Local: " .. locationNames[1] .. "  ▾")
+    locationButton:SetAttribute("SearchText", "Local")
+    local function setLocation(value)
+        build.location = math.clamp(math.floor(value), 1, 2)
+        locationButton.Text = "Local: " .. locationNames[build.location] .. "  ▾"
+        preferencesChanged()
+    end
+    dropdown(tabBuild, locationButton, function() return indexedOptions(locationNames) end,
+        setLocation, function() return build.location end)
+    preferences.controls["Build/Local"] = {kind = "number", get = function() return build.location end, set = setLocation}
+    numberField(tabBuild, "Quantidade de blocos", 20, 1, 1000, function(value) build.count = math.floor(value) end)
+    numberField(tabBuild, "Altura sobre o terreno", 20, 5, 60, function(value) build.height = value end)
+    numberField(tabBuild, "Espaçamento dos blocos", 6, 3, 12, function(value) build.spacing = value end)
+    numberField(tabBuild, "Velocidade de construção (blocos/s)", 6, 1, 30, function(value) build.rate = value end)
+
+    local function zoneForPlayer()
+        for _, part in ipairs(workspace:GetChildren()) do
+            local color = part:FindFirstChild("TeamColor")
+            if part:IsA("BasePart") and color and color:IsA("BrickColorValue")
+                and color.Value == player.TeamColor then return part end
+        end
+        return nil
+    end
+    local function blocksFolder()
+        local folder = workspace:FindFirstChild("Blocks")
+        return folder and folder:FindFirstChild(player.Name)
+    end
+    local function blockPart(model)
+        if model:IsA("BasePart") then return model end
+        return model:FindFirstChild("PPart") or model:FindFirstChildWhichIsA("BasePart", true)
+    end
+    local function getTool(name, remoteName)
+        local character, humanoid = characterParts()
+        if not character or not humanoid or humanoid.Health <= 0 then error("Personagem indisponível", 0) end
+        local backpack = player:FindFirstChildOfClass("Backpack")
+        local tool = character:FindFirstChild(name) or (backpack and backpack:FindFirstChild(name))
+        if not tool or not tool:IsA("Tool") then error("Ferramenta não encontrada: " .. name, 0) end
+        if tool.Parent ~= character then humanoid:EquipTool(tool); task.wait(0.1) end
+        local remote = tool:FindFirstChild(remoteName)
+        if tool.Parent ~= character or not remote or not remote:IsA("RemoteFunction") then
+            error("Ferramenta incompatível: " .. name .. "/" .. remoteName, 0)
+        end
+        return remote
+    end
+    local function active(token)
+        return alive and token == build.token and not farm.enabled
+    end
+    local function invoke(remote, args)
+        if build.pending then error("Aguardando resposta da solicitação anterior", 0) end
+        build.pending = true
+        local response
+        task.spawn(function()
+            response = table.pack(pcall(function() return remote:InvokeServer(table.unpack(args, 1, args.n)) end))
+            build.pending = false
+        end)
+        local deadline = os.clock() + 8
+        repeat task.wait(0.05) until response or not alive or os.clock() >= deadline
+        if not response then error("Sem resposta do servidor; a última solicitação ainda pode ser processada", 0) end
+        if not response[1] then error(tostring(response[2]), 0) end
+        if response[2] == false then error("O servidor recusou a solicitação", 0) end
+    end
+    local function positions(pattern, count, spacing, height)
+        local result = {}
+        local width = pattern == 1 and math.ceil(count ^ (1 / 3)) or math.ceil(math.sqrt(count))
+        for index = 0, count - 1 do
+            local x, y, z = 0, height, 0
+            if pattern == 3 then
+                y = height + index * spacing
+            else
+                x = (index % width - (width - 1) / 2) * spacing
+                z = (math.floor(index / width) % width - (width - 1) / 2) * spacing
+                if pattern == 1 then y = y + math.floor(index / (width * width)) * spacing end
+            end
+            table.insert(result, Vector3.new(x, y, z))
+        end
+        return result
+    end
+    local function startJob(callback)
+        if build.busy or build.pending then buildStatus.Text = "Aguarde a operação anterior terminar"; return end
+        if farm.enabled then buildStatus.Text = "Desligue o Auto Farm antes de construir"; return end
+        releaseMagnet()
+        build.busy = true
+        build.token = build.token + 1
+        local token = build.token
+        task.spawn(function()
+            local ok, message = pcall(callback, token)
+            build.busy = false
+            if alive and not ok then buildStatus.Text = "Build: " .. tostring(message):sub(1, 180) end
+        end)
+    end
+    stopBuild = function()
+        build.token = build.token + 1
+        if buildStatus.Parent then buildStatus.Text = "Cancelado. Blocos já criados permanecem no terreno." end
+    end
+    control(tabBuild, "TextButton", "Construir modelo").Activated:Connect(function()
+        -- Congela as escolhas para impedir mudancas no meio de uma construcao.
+        local name, count, pattern, spacing, height = build.block, build.count, build.pattern, build.spacing, build.height
+        local location = build.location
+        startJob(function(token)
+            local zone = zoneForPlayer()
+            if not zone then error("Terreno do seu time não encontrado", 0) end
+            local origin = Vector3.new(0, zone.Size.Y / 2, 0)
+            if location == 2 then
+                local _, humanoid, rootPart = characterParts()
+                if not rootPart or not humanoid or humanoid.Health <= 0 then error("Personagem indisponível", 0) end
+                origin = zone.CFrame:PointToObjectSpace(rootPart.Position)
+            end
+            local zoneFrame = zone.CFrame
+            local data = player:FindFirstChild("Data")
+            local entry = data and data:FindFirstChild(name)
+            if not entry or not (entry:IsA("IntValue") or entry:IsA("NumberValue")) then error("Bloco não encontrado no inventário", 0) end
+            if entry.Value < count then error("Quantidade insuficiente desse bloco", 0) end
+            local plan = positions(pattern, count, spacing, height)
+            for _, offset in ipairs(plan) do
+                local position = origin + offset
+                if math.abs(position.X) > zone.Size.X / 2 - 3 or math.abs(position.Z) > zone.Size.Z / 2 - 3
+                    or position.Y - zone.Size.Y / 2 > 120 or position.Y < zone.Size.Y / 2 then
+                    error(location == 2 and "Modelo fora do terreno: aproxime-se do centro da sua base ou reduza o tamanho"
+                        or "Modelo grande demais: reduza quantidade, altura ou espaçamento", 0)
+                end
+            end
+            local remote = getTool("BuildingTool", "RF")
+            local completed = 0
+            for _, offset in ipairs(plan) do
+                if not active(token) then return end
+                local placementStart = os.clock()
+                if not zone.Parent then error("O terreno mudou", 0) end
+                local world = zoneFrame * CFrame.new(origin + offset)
+                local before = {}
+                local folder = blocksFolder()
+                if folder then for _, item in ipairs(folder:GetChildren()) do before[item] = true end end
+                buildStatus.Text = "Construindo: " .. completed .. "/" .. count
+                -- Assinatura observada da ferramenta: nome, inventario, referencia, local, ancorado, mundo, especial.
+                invoke(remote, table.pack(name, entry.Value, zone, zone.CFrame:ToObjectSpace(world), true, world, false))
+                local created
+                local deadline = os.clock() + 3
+                repeat
+                    folder = blocksFolder()
+                    if folder then
+                        for _, item in ipairs(folder:GetChildren()) do
+                            local part = blockPart(item)
+                            if not before[item] and item.Name == name and part and part:IsA("BasePart")
+                                and (part.Position - world.Position).Magnitude < 3 then created = item; break end
+                        end
+                    end
+                    if not created then task.wait(0.1) end
+                until created or not alive or os.clock() >= deadline
+                if not created then error("Bloco não confirmado pelo servidor; construção interrompida", 0) end
+                table.insert(build.created, created)
+                completed = completed + 1
+                if not active(token) then return end
+                buildStatus.Text = "Confirmados: " .. completed .. "/" .. count
+                local remaining = 1 / build.rate - (os.clock() - placementStart)
+                if remaining > 0 then task.wait(remaining) end
+            end
+            updateBlockButton()
+            buildStatus.Text = "Pronto: " .. completed .. " blocos ancorados. Use Soltar para o ímã."
+        end)
+    end)
+    control(tabBuild, "TextButton", "Soltar blocos criados para o ímã").Activated:Connect(function()
+        startJob(function(token)
+            local folder = blocksFolder()
+            if not folder then error("Seus blocos não foram encontrados", 0) end
+            local remote = getTool("PropertiesTool", "SetPropertieRF")
+            local released = 0
+            for _, item in ipairs(build.created) do
+                if not active(token) then return end
+                local part = item.Parent and blockPart(item)
+                if item:IsDescendantOf(folder) and part and part:IsA("BasePart") and part.Anchored then
+                    invoke(remote, table.pack("Anchored", {item}))
+                    local deadline = os.clock() + 3
+                    repeat task.wait(0.05) until not part.Parent or not part.Anchored or os.clock() >= deadline
+                    if part.Parent and part.Anchored then error("Servidor não confirmou que o bloco foi solto", 0) end
+                    released = released + 1
+                end
+            end
+            if active(token) then buildStatus.Text = "Blocos liberados: " .. released end
+        end)
+    end)
+    control(tabBuild, "TextButton", "Cancelar construção").Activated:Connect(stopBuild)
+    inventory()
+end
+
+categories(tabMagnet, {
+    {"Geral", {"Ativar ímã", "Modo toggle (clique para prender/soltar)", "Modo do ímã", "Soltar todos os blocos"}, true},
+    {"Captura", {"Raio de captura (studs)", "Alcance máximo (studs)", "Limite de conjuntos de blocos"}, false},
+    {"Movimento", {"Resposta do movimento (%)", "Velocidade dos blocos (studs/s)",
+        "Distância do cursor (studs)", "Atravessar obstáculos"}, false},
+    {"Formação e tornado", {"Raio do círculo / órbita", "Altura da formação no jogador",
+        "Altura do tornado", "Velocidade da órbita (graus/s)"}, false},
+    {"Restaurar", {"Resetar opções do ímã"}, false},
+})
+categories(tabBuild, {
+    {"Blocos e modelo", {"Bloco", "Modelo", "Local", "Atualizar lista de blocos"}, true},
+    {"Dimensões", {"Quantidade de blocos", "Altura sobre o terreno", "Espaçamento dos blocos"}, false},
+    {"Construção", {"Velocidade de construção (blocos/s)", "Construir modelo",
+        "Soltar blocos criados para o ímã", "Cancelar construção"}, true},
+})
+
 local function loadSettings()
     if not hasStorage then
         storageMessage("Sem salvamento em disco: readfile/writefile não estão disponíveis. Ajustes valem apenas nesta execução.")
@@ -998,7 +1888,7 @@ local function loadSettings()
     end
     -- Sliders primeiro; alternadores depois. Auto Farm e aplicado por ultimo.
     local failed = false
-    for _, kind in ipairs({"number", "boolean"}) do
+    for _, kind in ipairs({"number", "string", "boolean"}) do
         for key, entry in pairs(preferences.controls) do
             local value = saved.values[key]
             if key ~= "Auto Farm/Auto Farm" and entry.kind == kind and type(value) == kind then
@@ -1032,6 +1922,8 @@ gui.Destroying:Connect(function()
     -- Salva antes de restaurar o personagem: a limpeza nao apaga as preferencias.
     saveSettings()
     preferences.closed = true
+    stopBuild()
+    releaseMagnet()
     alive = false
     farm.enabled = false
     farm.token = farm.token + 1
