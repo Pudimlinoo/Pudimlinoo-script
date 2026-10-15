@@ -87,7 +87,7 @@ create("TextLabel", {
     Position = UDim2.new(1, -252, 0, 20),
     Size = UDim2.fromOffset(190, 24),
     BackgroundTransparency = 1,
-    Text = "V016C8  /  BUILD A BOAT",
+    Text = "V016C13  /  BUILD A BOAT",
     Font = Enum.Font.GothamMedium,
     TextSize = 11,
     TextColor3 = Theme.Muted,
@@ -762,6 +762,68 @@ end)
 local showJump = numberField(tabPlayer, "Força do pulo", math.floor(initialJump), 0, 200, function(value)
     movement.jump = value; applyMovement()
 end)
+local stopFlight, setFly, setInfiniteJump
+do
+    local enabled, infiniteJump, speed = false, false, 60
+    local attachment, velocity, activeHumanoid, savedPlatform, savedRotate
+    local focused = true
+    stopFlight = function()
+        movement.flyActive = false
+        if velocity then velocity:Destroy(); velocity = nil end
+        if attachment then attachment:Destroy(); attachment = nil end
+        if activeHumanoid and activeHumanoid.Parent then
+            activeHumanoid.PlatformStand = savedPlatform
+            activeHumanoid.AutoRotate = savedRotate
+        end
+        activeHumanoid = nil
+    end
+    setFly = toggle(tabPlayer, "Fly", function(value)
+        enabled = value
+        if not value then stopFlight() end
+    end)
+    numberField(tabPlayer, "Velocidade do Fly", 60, 5, 300, function(value) speed = value end)
+    control(tabPlayer, "TextLabel", "Fly: WASD para mover • Espaço sobe • Ctrl desce", 38)
+    setInfiniteJump = toggle(tabPlayer, "Pulo infinito", function(value) infiniteJump = value end)
+    local lastJump = 0
+    connect(UserInputService.JumpRequest, function()
+        if not infiniteJump or enabled or movement.farming or UserInputService:GetFocusedTextBox() then return end
+        local _, humanoid = characterParts()
+        if humanoid and humanoid.Health > 0 and not humanoid.SeatPart and os.clock() - lastJump >= 0.12 then
+            lastJump = os.clock()
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end)
+    connect(UserInputService.WindowFocusReleased, function() focused = false; stopFlight() end)
+    connect(UserInputService.WindowFocused, function() focused = true end)
+    connect(player.CharacterRemoving, stopFlight)
+    connect(RunService.PreSimulation, function()
+        local _, humanoid, rootPart = characterParts()
+        if not enabled or not focused or movement.farming or not rootPart or not humanoid
+            or humanoid.Health <= 0 or humanoid.SeatPart or rootPart.Anchored then stopFlight(); return end
+        if activeHumanoid ~= humanoid or not attachment or attachment.Parent ~= rootPart
+            or not velocity or velocity.Parent ~= rootPart then
+            stopFlight()
+            activeHumanoid = humanoid
+            savedPlatform, savedRotate = humanoid.PlatformStand, humanoid.AutoRotate
+            attachment = create("Attachment", {Name = "PudimHub_FlyAttachment"}, rootPart)
+            velocity = create("LinearVelocity", {Name = "PudimHub_FlyVelocity", Attachment0 = attachment,
+                RelativeTo = Enum.ActuatorRelativeTo.World, VelocityConstraintMode = Enum.VelocityConstraintMode.Vector,
+                ForceLimitsEnabled = false, VectorVelocity = Vector3.zero}, rootPart)
+        end
+        humanoid.PlatformStand = true
+        humanoid.AutoRotate = false
+        movement.flyActive = true
+        local direction = Vector3.zero
+        local camera = workspace.CurrentCamera
+        if camera and not UserInputService:GetFocusedTextBox() then
+            local function key(code) return UserInputService:IsKeyDown(code) and 1 or 0 end
+            direction = camera.CFrame.LookVector * (key(Enum.KeyCode.W) - key(Enum.KeyCode.S))
+                + camera.CFrame.RightVector * (key(Enum.KeyCode.D) - key(Enum.KeyCode.A))
+                + Vector3.yAxis * (key(Enum.KeyCode.Space) - math.max(key(Enum.KeyCode.LeftControl), key(Enum.KeyCode.RightControl)))
+        end
+        velocity.VectorVelocity = direction.Magnitude > 0 and direction.Unit * speed or Vector3.zero
+    end)
+end
 local setWater
 local setNoclip = toggle(tabPlayer, "Noclip", function(value)
     movement.noclip = value
@@ -794,7 +856,7 @@ local function waterSurface(hit)
     return false
 end
 control(tabPlayer, "TextButton", "Restaurar movimento original").Activated:Connect(function()
-    restoreMovement(); setNoclip(false); setWater(false)
+    restoreMovement(); setNoclip(false); setWater(false); setFly(false); setInfiniteJump(false)
     local _, humanoid = characterParts()
     if humanoid then
         showSpeed(humanoid.WalkSpeed)
@@ -812,7 +874,7 @@ connect(RunService.Stepped, function()
             end
         end
     end
-    if not movement.water or movement.farming or not rootPart
+    if not movement.water or movement.farming or movement.flyActive or not rootPart
         or not humanoid or humanoid.Health <= 0 or humanoid.SeatPart then
         removeFloor(); return
     end
@@ -1113,9 +1175,9 @@ do
     local magnet = {enabled = false, holding = false, toggleMode = false, radius = 20, reach = 150,
         response = 100, speed = 80, limit = 20, depth = 35, mode = 1, formation = 12,
         angle = 0, orbitHeight = 5, orbitRate = 70, tornadoHeight = 40, ghost = false,
-        capture = 0, capturing = false, items = {}}
+        capture = 0, capturing = false, spacing = 6, sphereRadius = 15, items = {}}
     local modeNames = {"Normal", "Centralizar no cursor", "Círculo", "Órbita",
-        "Órbita no jogador", "Círculo no jogador", "Tornado", "Tornado no cursor"}
+        "Órbita no jogador", "Círculo no jogador", "Tornado", "Tornado no cursor", "Linha reta", "Parede", "Esfera"}
     local function followsPlayer(mode) return mode >= 5 and mode <= 7 end
     local mouse = player:GetMouse()
     local tornadoCenter
@@ -1209,6 +1271,8 @@ do
     local showDepth = numberField(tabMagnet, "Distância do cursor (studs)", 35, 5, 2500, function(value) magnet.depth = value end)
     numberField(tabMagnet, "Altura da formação no jogador", 5, 0, 100, function(value) magnet.orbitHeight = value end)
     numberField(tabMagnet, "Altura do tornado", 40, 5, 500, function(value) magnet.tornadoHeight = value end)
+    numberField(tabMagnet, "Espaçamento da linha / parede", 6, 2, 100, function(value) magnet.spacing = value end)
+    numberField(tabMagnet, "Raio da esfera", 15, 3, 500, function(value) magnet.sphereRadius = value end)
     numberField(tabMagnet, "Velocidade da órbita (graus/s)", 70, 0, 500, function(value) magnet.orbitRate = value end)
     numberField(tabMagnet, "Limite de conjuntos de blocos", 20, 1, 500, function(value) magnet.limit = math.floor(value) end)
     local setGhost = toggle(tabMagnet, "Atravessar obstáculos", function(value)
@@ -1228,6 +1292,8 @@ do
             ["Distância do cursor (studs)"] = 35,
             ["Altura da formação no jogador"] = 5, ["Velocidade da órbita (graus/s)"] = 70,
             ["Altura do tornado"] = 40,
+            ["Espaçamento da linha / parede"] = 6,
+            ["Raio da esfera"] = 15,
             ["Atravessar obstáculos"] = true,
             ["Raio do círculo / órbita"] = 12, ["Limite de conjuntos de blocos"] = 20 }
         for name, value in pairs(defaults) do preferences.controls["Ímã/" .. name].set(value) end
@@ -1238,6 +1304,24 @@ do
     local function formationOffset(mode, index, count, radius, angle, original, tornadoHeight)
         if mode == 1 then return original end
         if mode == 2 then return Vector3.new(0, 0, 0) end
+        if mode == 11 then
+            if count <= 1 then return Vector3.zero end
+            -- Espiral de Fibonacci distribui os blocos pela superficie sem acumular nos polos.
+            local y = 1 - 2 * (index - 0.5) / count
+            local ring = math.sqrt(math.max(0, 1 - y * y))
+            local theta = (index - 1) * math.pi * (3 - math.sqrt(5))
+            return Vector3.new(math.cos(theta) * ring, y, math.sin(theta) * ring) * magnet.sphereRadius
+        end
+        if mode == 9 then
+            return Vector3.new((index - 1 - (count - 1) / 2) * magnet.spacing, 0, 0)
+        end
+        if mode == 10 then
+            local columns = math.max(1, math.ceil(math.sqrt(count)))
+            local row = math.floor((index - 1) / columns)
+            local rowCount = math.min(columns, count - row * columns)
+            return Vector3.new(((index - 1) % columns - (rowCount - 1) / 2) * magnet.spacing,
+                row * magnet.spacing, 0)
+        end
         if mode == 7 or mode == 8 then
             local level = count > 1 and (index - 1) / (count - 1) or 0
             local ringRadius = radius * (0.2 + 0.8 * level)
@@ -1419,8 +1503,14 @@ do
         if input.UserInputType == Enum.UserInputType.MouseButton1 and not magnet.toggleMode and not followsPlayer(magnet.mode)
             and (magnet.holding or magnet.capturing) then releaseMagnet() end
     end)
-    connect(UserInputService.WindowFocusReleased, releaseMagnet)
+    connect(UserInputService.WindowFocusReleased, function()
+        if not magnet.toggleMode and not followsPlayer(magnet.mode) then releaseMagnet() end
+    end)
     connect(player.CharacterRemoving, releaseMagnet)
+    connect(RunService.PreSimulation, function()
+        if not magnet.enabled or not magnet.ghost or not (magnet.holding or magnet.capturing) then return end
+        for _, item in ipairs(magnet.items) do updateCollisions(item, true) end
+    end)
     connect(UserInputService.InputChanged, function(input, processed)
         if magnet.holding and not processed and input.UserInputType == Enum.UserInputType.MouseWheel then
             if followsPlayer(magnet.mode) then
@@ -1436,6 +1526,14 @@ do
         if not rootPart or not humanoid or humanoid.Health <= 0 or farm.enabled then releaseMagnet(); return end
         local ray = mouse.UnitRay
         local target
+        if aimFilterDirty then rebuildAimFilter() end
+        local clearance = 4
+        for _, item in ipairs(magnet.items) do
+            if item.part:IsDescendantOf(workspace) then
+                clearance = math.max(clearance, item.part.Size.Magnitude * 0.5 + 2
+                    + (magnet.mode == 1 and math.max(0, -item.offset.Y) or 0))
+            end
+        end
         if followsPlayer(magnet.mode) then
             target = rootPart.Position + Vector3.new(0, magnet.orbitHeight, 0)
         else
@@ -1448,8 +1546,8 @@ do
             if rayLength > 0 then
                 local hit = workspace:Raycast(ray.Origin, ray.Direction * rayLength, aimParams)
                 if hit then
-                    -- Mira direta, sem projetar no chao nem somar a altura de todo o grupo.
-                    target = ray.Origin + ray.Direction * math.max(0, hit.Distance - 2)
+                    -- Mantem espaco entre a formacao e a superficie apontada.
+                    target = hit.Position + hit.Normal * clearance
                     magnet.depth = math.clamp(hit.Distance, 5, 2500)
                 else
                     target = ray.Origin + ray.Direction * math.min(magnet.depth, rayLength)
@@ -1461,9 +1559,10 @@ do
             lastCursorTarget = target
         end
         local tornado = magnet.mode == 7 or magnet.mode == 8
+        if magnet.mode == 11 then target = target + Vector3.new(0, magnet.sphereRadius, 0) end
         local pace = 1 - math.min(0.65, recoveryLoad * 0.65)
         if tornado then
-            if magnet.mode == 8 then target = target + Vector3.new(0, 5, 0) end
+            if magnet.mode == 8 then target = target + Vector3.new(0, clearance, 0) end
             tornadoCenter = tornadoCenter or target
             local delta = target - tornadoCenter
             -- Reserva velocidade para o giro e para os blocos atrasados recuperarem a formacao.
@@ -1486,6 +1585,7 @@ do
         local waiting = 0
         local recovering = 0
         local occupiedAssemblies = {}
+        local floorBudget = 64
         -- Recupera partes da selecao que se separaram de um conjunto soldado.
         splitScan = splitScan + dt
         if splitScan >= 0.4 then
@@ -1539,7 +1639,11 @@ do
                 if item.lift and item.lift.Parent then item.lift.Enabled = false end
                 waiting = waiting + 1
             elseif not permitted(item.part, true) or not permitted(assembly, true) then
-                discard(item); table.remove(magnet.items, index)
+                -- Uma cadeira ocupada pode ligar temporariamente o bloco ao personagem.
+                -- Suspende a forca sem esquecer a selecao; retoma quando estiver livre.
+                if item.align then item.align.Enabled = false end
+                if item.lift then item.lift.Enabled = false end
+                paused = paused + 1
             elseif occupiedAssemblies[assembly] then
                 -- Conjuntos unidos durante o arraste usam apenas um motor.
                 local keeper = occupiedAssemblies[assembly]
@@ -1555,9 +1659,32 @@ do
             else
                 occupiedAssemblies[assembly] = item
                 ensureActuators(item)
-                if magnet.ghost then updateCollisions(item, true) end
-                local destination = target + formationOffset(magnet.mode, item.slot or index, item.slotCount or #magnet.items,
+                local offset = formationOffset(magnet.mode, item.slot or index, item.slotCount or #magnet.items,
                     magnet.formation, magnet.angle, item.offset, magnet.tornadoHeight)
+                if magnet.mode == 9 or magnet.mode == 10 then
+                    local camera = workspace.CurrentCamera
+                    local right = camera and camera.CFrame.RightVector or Vector3.xAxis
+                    right = Vector3.new(right.X, 0, right.Z)
+                    right = right.Magnitude > 0.001 and right.Unit or Vector3.xAxis
+                    offset = right * offset.X + Vector3.yAxis * offset.Y
+                end
+                local destination = target + offset
+                -- Verificacao escalonada evita centenas de raycasts no mesmo quadro.
+                item.floorTimer = (item.floorTimer or ((index % 12) * 0.015)) - dt
+                local moved = not item.floorProbe or (destination - item.floorProbe).Magnitude > 12
+                if (item.floorTimer <= 0 or moved) and floorBudget > 0 then
+                    floorBudget = floorBudget - 1
+                    item.floorTimer = 0.18
+                    item.floorProbe = destination
+                    local sizeClearance = item.part.Size.Magnitude * 0.5 + 2
+                    local floorHit = workspace:Raycast(destination + Vector3.new(0, sizeClearance + 8, 0),
+                        Vector3.new(0, -(sizeClearance + 72), 0), aimParams)
+                    item.floorY = floorHit and floorHit.Normal.Y > 0.5
+                        and (floorHit.Position.Y + sizeClearance) or nil
+                end
+                if item.floorY then
+                    destination = Vector3.new(destination.X, math.max(destination.Y, item.floorY), destination.Z)
+                end
                 item.command = destination
                 item.attachment.Position = item.part.CFrame:PointToObjectSpace(item.part.AssemblyCenterOfMass)
                 item.align.Position = item.command
@@ -1589,7 +1716,7 @@ do
                 .. (recovering > 0 and (" • recuperando: " .. recovering) or "")
                 .. (waiting > 0 and (" • aguardando retorno: " .. waiting) or "")
                 .. (unresponsive > 0 and (" • sem acompanhar: " .. unresponsive) or "")
-                .. (paused > 0 and (" • ancorados: " .. paused) or "")
+                .. (paused > 0 and (" • ancorados/ocupados: " .. paused) or "")
                 .. (followsPlayer(magnet.mode) and " • use Soltar para liberar" or "")
         end
     end)
@@ -1601,6 +1728,20 @@ do
         busy = false, token = 0, pending = false, created = {}}
     local models = {"Blocos no ar para ímã", "Grade", "Torre"}
     local choices = {}
+    local function buildCategory(name)
+        local lower = string.lower(name):gsub("block$", "")
+        if lower:match("chair$") or lower:match("seat$") or lower:match("throne$") then return "Cadeiras" end
+        if lower:match("scaffold$") or lower:match("scaffolding$") then return "Andaimes" end
+        if name:match("Block$") then return "Blocos" end
+        return nil
+    end
+    local function buildLabel(name)
+        local lower = string.lower(name):gsub("block$", "")
+        if lower == "woodseat" or lower == "woodenseat" or lower == "woodchair" or lower == "woodenchair" then
+            return "Cadeira de madeira (" .. name .. ")"
+        end
+        return name
+    end
     control(tabBuild, "TextLabel", "CONSTRUÇÃO AUTOMÁTICA", 28).BackgroundTransparency = 1
     local buildStatus = control(tabBuild, "TextLabel", "Escolha o bloco e o modelo", 64)
     local blockButton = control(tabBuild, "TextButton", "Bloco: WoodBlock")
@@ -1609,7 +1750,7 @@ do
         local data = player:FindFirstChild("Data")
         local entry = data and data:FindFirstChild(build.block)
         local amount = entry and (entry:IsA("IntValue") or entry:IsA("NumberValue")) and entry.Value or nil
-        blockButton.Text = "Bloco: " .. build.block .. (amount and ("  •  " .. tostring(amount)) or "") .. "  ▾"
+        blockButton.Text = "Bloco: " .. buildLabel(build.block) .. (amount and ("  •  " .. tostring(amount)) or "") .. "  ▾"
     end
     local function inventory()
         table.clear(choices)
@@ -1617,12 +1758,16 @@ do
         if data then
             for _, entry in ipairs(data:GetChildren()) do
                 if (entry:IsA("IntValue") or entry:IsA("NumberValue"))
-                    and entry.Value > 0 and entry.Name:match("Block$") then
+                    and entry.Value > 0 and buildCategory(entry.Name) then
                     table.insert(choices, entry.Name)
                 end
             end
         end
-        table.sort(choices)
+        table.sort(choices, function(a, b)
+            local ca, cb = buildCategory(a), buildCategory(b)
+            if ca == cb then return a < b end
+            return ca < cb
+        end)
         updateBlockButton()
         return #choices
     end
@@ -1632,7 +1777,7 @@ do
         local data = player:FindFirstChild("Data")
         for _, name in ipairs(choices) do
             local entry = data and data:FindFirstChild(name)
-            table.insert(options, {value = name, label = name .. "  •  " .. tostring(entry and entry.Value or 0)})
+            table.insert(options, {value = name, label = buildCategory(name) .. " • " .. buildLabel(name) .. "  •  " .. tostring(entry and entry.Value or 0)})
         end
         return options
     end, function(value)
@@ -1644,7 +1789,7 @@ do
     end)
     preferences.controls["Build/Bloco"] = {kind = "string", get = function() return build.block end,
         set = function(value)
-            if #value <= 80 and value:match("^[%w_]+Block$") then
+            if #value <= 80 and value:match("^[%w_]+$") and buildCategory(value) then
                 build.block = value; updateBlockButton()
             end
         end}
@@ -1848,7 +1993,7 @@ categories(tabMagnet, {
     {"Movimento", {"Resposta do movimento (%)", "Velocidade dos blocos (studs/s)",
         "Distância do cursor (studs)", "Atravessar obstáculos"}, false},
     {"Formação e tornado", {"Raio do círculo / órbita", "Altura da formação no jogador",
-        "Altura do tornado", "Velocidade da órbita (graus/s)"}, false},
+        "Altura do tornado", "Espaçamento da linha / parede", "Raio da esfera", "Velocidade da órbita (graus/s)"}, false},
     {"Restaurar", {"Resetar opções do ímã"}, false},
 })
 categories(tabBuild, {
@@ -1924,6 +2069,7 @@ gui.Destroying:Connect(function()
     preferences.closed = true
     stopBuild()
     releaseMagnet()
+    stopFlight()
     alive = false
     farm.enabled = false
     farm.token = farm.token + 1
